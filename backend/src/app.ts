@@ -4,6 +4,8 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { env } from './config/env'
 import authRouter from './routes/auth'
+import clientsRouter from './routes/clients'
+import casesRouter from './routes/cases'
 import { errorHandler } from './middleware/errorHandler'
 const app = express()
 
@@ -50,6 +52,8 @@ app.get('/health', (_, res) => {
 
 // Routes هتتضاف هنا في Prompts الجاية
 app.use('/api/auth', authRouter)
+app.use('/api/clients', clientsRouter)
+app.use('/api/cases', casesRouter)
 // app.use('/api/clients', clientsRouter)
 // ...
 
