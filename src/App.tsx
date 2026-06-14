@@ -30,6 +30,7 @@ import PWAPrompt from '@/components/PWAPrompt';
 function App() {
   return (
     <ErrorBoundary>
+      {/* @ts-ignore - next-themes ThemeProvider type mismatch with React 18+ */}
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <BrowserRouter>
         <PWAPrompt />

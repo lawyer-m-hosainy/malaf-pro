@@ -1,6 +1,5 @@
 import { Trash2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { UploadedFile } from '@/store/useLocalStore';
 
 export function FileList({ files, onRemove, getIcon }: any) {
   if (!files || files.length === 0) {
@@ -12,14 +11,15 @@ export function FileList({ files, onRemove, getIcon }: any) {
     );
   }
 
-  const handleDownload = (file: UploadedFile) => {
-    // محاكاة التحميل لأن الملف محفوظ كـ base64
-    const link = document.createElement('a');
-    link.href = file.url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = (file: any) => {
+    if (file.url || file.filePath) {
+      const link = document.createElement('a');
+      link.href = file.url || file.filePath;
+      link.download = file.name || file.title || 'document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const formatSize = (bytes: number) => {
@@ -39,7 +39,7 @@ export function FileList({ files, onRemove, getIcon }: any) {
 
   return (
     <div className="space-y-3">
-      {files.map((file: UploadedFile) => {
+      {files.map((file: any) => {
         const Icon = getIcon(file.type);
         return (
           <div key={file.id} className="flex items-center justify-between p-4 border rounded-xl bg-card hover:shadow-md transition-all group animate-in slide-in-from-bottom-2">
@@ -48,11 +48,11 @@ export function FileList({ files, onRemove, getIcon }: any) {
                 <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h4 className="font-semibold text-sm truncate text-foreground" title={file.name}>{file.name}</h4>
+                <h4 className="font-semibold text-sm truncate text-foreground" title={file.name || file.title}>{file.name || file.title}</h4>
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground font-medium">
-                  <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]" dir="ltr">{formatSize(file.size)}</span>
+                  {file.size && <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]" dir="ltr">{formatSize(file.size)}</span>}
                   <span>•</span>
-                  <span>تم الرفع: {formatDate(file.uploadedAt)}</span>
+                  <span>تم الرفع: {formatDate(file.uploadedAt || file.createdAt)}</span>
                 </div>
               </div>
             </div>

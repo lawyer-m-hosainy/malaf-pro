@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, FolderOpen, Calendar, Clock, CheckCircle2, User, AlertCircle, Printer } from 'lucide-react';
+import { Plus, Search, FolderOpen, Calendar, Clock, CheckCircle2, User, AlertCircle, Printer, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function Administrative() {
   const { user } = useAuthStore();
@@ -14,7 +15,10 @@ export default function Administrative() {
   const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUser, setFilterUser] = useState('all');
   const [activeTab, setActiveTab] = useState<'board' | 'list'>('board');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newTask, setNewTask] = useState({ title: '', assigneeId: '', dueDate: '', priority: 'MEDIUM', description: '', caseId: '' });
   const [assigneeFilter, setAssigneeFilter] = useState('الجميع');
   const [dateFilter, setDateFilter] = useState('الجميع');
 
@@ -103,6 +107,37 @@ export default function Administrative() {
     }
   });
 
+  const { data: team = [] } = useQuery({
+    queryKey: ['team-list'],
+    queryFn: async () => { const res = await api.get('/auth/team'); return res.data.data || []; }
+  });
+
+  const { data: cases = [] } = useQuery({
+    queryKey: ['cases-list'],
+    queryFn: async () => { const res = await api.get('/cases'); return res.data.data || []; }
+  });
+
+  const { mutate: addTask, isPending: isAdding } = useMutation({
+    mutationFn: async () => {
+      await api.post('/tasks', {
+        title: newTask.title,
+        assigneeId: newTask.assigneeId || undefined,
+        dueDate: newTask.dueDate || undefined,
+        priority: newTask.priority,
+        description: newTask.description || undefined,
+        caseId: newTask.caseId || undefined,
+        status: 'PENDING',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('تمت إضافة المهمة بنجاح');
+      setNewTask({ title: '', assigneeId: '', dueDate: '', priority: 'MEDIUM', description: '', caseId: '' });
+      setIsAddOpen(false);
+    },
+    onError: () => toast.error('حدث خطأ أثناء إضافة المهمة'),
+  });
+
   const handleStatusChange = (id: string, newStatus: string) => {
     updateStatus({ id, status: newStatus });
   };
@@ -175,7 +210,7 @@ export default function Administrative() {
             <Printer className="h-4 w-4" /> طباعة
           </Button>
           {isAdminOrOwner && (
-            <Button className="gap-2 shadow-sm">
+            <Button className="gap-2 shadow-sm" onClick={() => setIsAddOpen(true)}>
               <Plus className="h-4 w-4" /> إضافة مهمة جديدة
             </Button>
           )}
@@ -297,6 +332,69 @@ export default function Administrative() {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* Add Task Modal */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-background rounded-xl p-6 w-full max-w-lg shadow-lg border relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setIsAddOpen(false)} className="absolute top-4 left-4 p-1 rounded-full hover:bg-muted">
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" /> إضافة مهمة جديدة
+            </h3>
+            <form onSubmit={(e) => { e.preventDefault(); if (newTask.title) addTask(); }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">عنوان المهمة *</label>
+                <Input placeholder="مثال: استخراج شهادة من الجدول" value={newTask.title} onChange={(e) => setNewTask({...newTask, title: e.target.value})} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">وصف المهمة (اختياري)</label>
+                <textarea 
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="أي تفاصيل أو ملاحظات تخص المهمة..."
+                  value={newTask.description} 
+                  onChange={(e) => setNewTask({...newTask, description: e.target.value})} 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">إسناد إلى (اختياري)</label>
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTask.assigneeId} onChange={(e) => setNewTask({...newTask, assigneeId: e.target.value})}>
+                    <option value="">غير مسند</option>
+                    {team.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">ارتباط بقضية (اختياري)</label>
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTask.caseId} onChange={(e) => setNewTask({...newTask, caseId: e.target.value})}>
+                    <option value="">بدون ارتباط</option>
+                    {cases.map((c: any) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">تاريخ الاستحقاق (اختياري)</label>
+                  <Input type="date" value={newTask.dueDate} onChange={(e) => setNewTask({...newTask, dueDate: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">الأولوية</label>
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newTask.priority} onChange={(e) => setNewTask({...newTask, priority: e.target.value})}>
+                    <option value="LOW">منخفضة</option>
+                    <option value="MEDIUM">متوسطة</option>
+                    <option value="HIGH">عاجلة</option>
+                  </select>
+                </div>
+              </div>
+              <div className="pt-4 flex gap-3">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddOpen(false)}>إلغاء</Button>
+                <Button type="submit" className="flex-1" disabled={isAdding}>{isAdding ? 'جاري الحفظ...' : 'حفظ المهمة'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

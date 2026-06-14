@@ -2,18 +2,22 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Calendar as CalendarIcon, MapPin, AlertCircle, CheckCircle2, CalendarClock, Printer, Loader2 } from 'lucide-react';
+import { Plus, Search, Calendar as CalendarIcon, MapPin, AlertCircle, CheckCircle2, CalendarClock, Printer, Loader2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export default function Sessions() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [newSession, setNewSession] = useState({ caseId: '', date: '', time: '', type: 'جلسة عادية', notes: '' });
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['sessions'],
@@ -54,6 +58,31 @@ export default function Sessions() {
     return matchesSearch && matchesTab;
   });
 
+  // جلب القضايا لقائمة الاختيار
+  const { data: cases = [] } = useQuery({
+    queryKey: ['cases-list'],
+    queryFn: async () => { const res = await api.get('/cases'); return res.data.data || []; }
+  });
+
+  const { mutate: addSession, isPending: isAdding } = useMutation({
+    mutationFn: async () => {
+      await api.post('/sessions', {
+        caseId: newSession.caseId,
+        date: newSession.date,
+        time: newSession.time || '09:00',
+        type: newSession.type,
+        notes: newSession.notes,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      toast.success('تم إضافة الجلسة بنجاح');
+      setNewSession({ caseId: '', date: '', time: '', type: 'جلسة عادية', notes: '' });
+      setIsAddOpen(false);
+    },
+    onError: () => toast.error('حدث خطأ أثناء إضافة الجلسة'),
+  });
+
   // Group filtered sessions by date
   const groupedSessions = filteredSessions.reduce((acc: any, session: any) => {
     if (!acc[session.date]) {
@@ -75,7 +104,7 @@ export default function Sessions() {
             <Printer className="h-4 w-4" /> طباعة رول اليوم
           </Button>
           {(user?.role === 'ADMIN' || user?.role === 'OWNER') && (
-            <Button className="gap-2 shadow-sm">
+            <Button className="gap-2 shadow-sm" onClick={() => setIsAddOpen(true)}>
               <Plus className="h-4 w-4" /> إضافة جلسة
             </Button>
           )}
@@ -208,6 +237,68 @@ export default function Sessions() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Session Modal */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-background rounded-xl p-6 w-full max-w-md shadow-lg border relative">
+            <button onClick={() => setIsAddOpen(false)} className="absolute top-4 left-4 p-1 rounded-full hover:bg-muted">
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-primary" /> إضافة جلسة جديدة
+            </h3>
+            <form onSubmit={(e) => { e.preventDefault(); if (newSession.caseId && newSession.date) addSession(); }} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">القضية *</label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={newSession.caseId}
+                  onChange={(e) => setNewSession({...newSession, caseId: e.target.value})}
+                  required
+                >
+                  <option value="">اختر القضية...</option>
+                  {cases.map((c: any) => <option key={c.id} value={c.id}>{c.title} ({c.internalId})</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">التاريخ *</label>
+                  <Input type="date" value={newSession.date} onChange={(e) => setNewSession({...newSession, date: e.target.value})} required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">الوقت</label>
+                  <Input type="time" value={newSession.time} onChange={(e) => setNewSession({...newSession, time: e.target.value})} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">نوع الجلسة</label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={newSession.type}
+                  onChange={(e) => setNewSession({...newSession, type: e.target.value})}
+                >
+                  <option>جلسة عادية</option>
+                  <option>أولى جلسات</option>
+                  <option>مرافعة</option>
+                  <option>حكم</option>
+                  <option>استئناف</option>
+                  <option>نقض</option>
+                  <option>تحقيق</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">ملاحظات</label>
+                <Input placeholder="ملاحظات اختيارية..." value={newSession.notes} onChange={(e) => setNewSession({...newSession, notes: e.target.value})} />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddOpen(false)}>إلغاء</Button>
+                <Button type="submit" className="flex-1" disabled={isAdding}>{isAdding ? 'جاري الحفظ...' : 'حفظ الجلسة'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

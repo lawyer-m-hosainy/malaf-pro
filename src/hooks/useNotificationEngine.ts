@@ -1,84 +1,52 @@
 import { useEffect } from 'react';
-import { useLocalStore } from '@/store/useLocalStore';
-import { useNotificationStore, NotificationType } from '@/store/useNotificationStore';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export function useNotificationEngine() {
-  const cases = useLocalStore(state => state.cases);
-  const finance = useLocalStore(state => state.finance);
   const addNotification = useNotificationStore(state => state.addNotification);
   const notifications = useNotificationStore(state => state.notifications);
 
+  // جلب التنبيهات من الباكند
+  const { data: alerts = [] } = useQuery({
+    queryKey: ['dashboard-alerts'],
+    queryFn: async () => {
+      const res = await api.get('/dashboard/alerts');
+      return res.data.data || [];
+    },
+    refetchInterval: 5 * 60 * 1000, // تحديث كل 5 دقائق
+    staleTime: 3 * 60 * 1000,
+  });
+
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    if (!alerts || alerts.length === 0) return;
 
-    // إشعارات الجلسات
-    cases.forEach(c => {
-      if (!c.nextSession || c.nextSession === '-' || c.nextSession === 'يحدد لاحقاً') return;
+    alerts.forEach((alert: any) => {
+      // تحويل نوع التنبيه من الباكند لنوع الفرونت
+      const type = mapAlertType(alert.type);
       
-      const sessionDate = new Date(c.nextSession);
-      sessionDate.setHours(0, 0, 0, 0);
-      const diffDays = Math.ceil(
-        (sessionDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // لا ترسل إشعار لجلسة مرت ولا لجلسة بعيدة جداً
-      if (diffDays < 0 || diffDays > 7) return;
-
-      const type = getSessionType(diffDays);
-      
-      // تحقق إن الإشعار ده مش موجود خلاص لنفس القضية ونفس النوع
+      // تحقق إن الإشعار مش موجود خلاص
       const alreadyExists = notifications.some(
-        n => n.caseId === c.id && n.type === type
+        n => n.type === type && n.title === alert.title && n.message === alert.message
       );
       if (alreadyExists) return;
 
-      if (diffDays === 0) {
-        addNotification({
-          type: 'session_today',
-          title: 'جلسة اليوم',
-          message: `قضية "${c.title}" لديها جلسة اليوم.`,
-          caseId: c.id,
-        });
-      } else if (diffDays === 1) {
-        addNotification({
-          type: 'session_tomorrow',
-          title: 'جلسة غداً',
-          message: `قضية "${c.title}" لديها جلسة غداً.`,
-          caseId: c.id,
-        });
-      } else {
-        addNotification({
-          type: 'session_week',
-          title: 'جلسة قريبة',
-          message: `قضية "${c.title}" لديها جلسة بعد ${diffDays} أيام.`,
-          caseId: c.id,
-        });
-      }
-    });
-
-    // إشعارات الأتعاب المستحقة
-    finance
-      .filter(f => f.status === 'pending')
-      .forEach(f => {
-        const alreadyExists = notifications.some(
-          n => n.caseId === f.caseId && n.type === 'payment_due'
-        );
-        if (alreadyExists) return;
-        
-        addNotification({
-          type: 'payment_due',
-          title: 'أتعاب مستحقة',
-          message: `الموكل ${f.client} عليه مبلغ مستحق ${f.amount.toLocaleString()} ج.م.`,
-          caseId: f.caseId,
-        });
+      addNotification({
+        type,
+        title: alert.title,
+        message: alert.message,
+        caseId: alert.caseId,
       });
-
-  }, [cases, finance, addNotification, notifications]);
+    });
+  }, [alerts, addNotification, notifications]);
 }
 
-function getSessionType(diffDays: number): NotificationType {
-  if (diffDays === 0) return 'session_today';
-  if (diffDays === 1) return 'session_tomorrow';
-  return 'session_week';
+function mapAlertType(backendType: string) {
+  switch (backendType) {
+    case 'session_today': return 'session_today' as const;
+    case 'upcoming_session': return 'session_week' as const;
+    case 'overdue_invoices': return 'payment_due' as const;
+    case 'pending_invoices': return 'payment_due' as const;
+    default: return 'session_week' as const;
+  }
 }

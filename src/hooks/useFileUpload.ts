@@ -1,14 +1,32 @@
 import { useState } from 'react';
 import { FileText, Image as ImageIcon, FileArchive, FileType } from 'lucide-react';
-import { UploadedFile, useLocalStore } from '@/store/useLocalStore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 export function useFileUpload(caseId: string) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const addFile = useLocalStore(state => state.addFile);
-  const removeFile = useLocalStore(state => state.removeFile);
-  const files = useLocalStore(state => state.getFilesByCaseId(caseId));
+  // جلب الملفات المرفوعة من الباكند
+  const { data: files = [] } = useQuery({
+    queryKey: ['documents', caseId],
+    queryFn: async () => {
+      const res = await api.get('/documents', { params: { caseId } });
+      return res.data.data || [];
+    },
+    enabled: !!caseId,
+  });
+
+  // حذف ملف
+  const { mutate: removeFile } = useMutation({
+    mutationFn: async (fileId: string) => {
+      await api.delete(`/documents/${fileId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents', caseId] });
+    }
+  });
 
   const uploadFile = async (file: File) => {
     setIsUploading(true);
@@ -38,27 +56,19 @@ export function useFileUpload(caseId: string) {
     }
 
     try {
-      // حوّل لـ base64 واحفظه في state مؤقتاً لحد ما يجي الباك اند
-      const base64Url = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('caseId', caseId);
+      formData.append('title', file.name);
+      formData.append('type', getDocType(file.type));
+
+      await api.post('/documents', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      const newFile: UploadedFile = {
-        id: `FILE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: base64Url,
-        uploadedAt: new Date().toISOString(),
-        caseId: caseId
-      };
-
-      addFile(newFile);
+      queryClient.invalidateQueries({ queryKey: ['documents', caseId] });
     } catch (err) {
-      setError('حدث خطأ أثناء قراءة الملف أو تحويله');
+      setError('حدث خطأ أثناء رفع الملف');
     } finally {
       setIsUploading(false);
     }
@@ -72,4 +82,11 @@ export function useFileUpload(caseId: string) {
   };
 
   return { files, isUploading, error, uploadFile, removeFile, getFileIcon };
+}
+
+function getDocType(mimeType: string): string {
+  if (mimeType.includes('pdf')) return 'PDF';
+  if (mimeType.includes('word') || mimeType.includes('document')) return 'WORD';
+  if (mimeType.includes('image')) return 'IMAGE';
+  return 'OTHER';
 }
