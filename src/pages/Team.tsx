@@ -2,17 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UserPlus, Search, Shield, User, Briefcase, Mail, Phone, Lock, CheckCircle2, AlertCircle, MoreVertical, Edit, UserX, Trash2 } from 'lucide-react';
+import { UserPlus, Search, Shield, User, Briefcase, Mail, Lock, CheckCircle2, AlertCircle, MoreVertical, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
-const initialTeam = [
-  { id: '1', name: 'أ. محمد الحسيني', role: 'owner', roleTitle: 'مدير المكتب (شريك)', email: 'm.hosainy@lawfirm.local', phone: '010XXXXXXXX', status: 'active', type: 'إدارة' },
-  { id: '2', name: 'أحمد', role: 'lawyer', roleTitle: 'محامي استئناف', email: 'ahmed@lawfirm.local', phone: '011XXXXXXXX', status: 'active', type: 'قانوني' },
-  { id: '3', name: 'سارة محمود', role: 'admin', roleTitle: 'سكرتارية وإداري', email: 'sara@lawfirm.local', phone: '012XXXXXXXX', status: 'active', type: 'إداري' },
-  { id: '4', name: 'محمود حسين', role: 'lawyer', roleTitle: 'محامي ابتدائي / مندوب', email: 'mahmoud@lawfirm.local', phone: '015XXXXXXXX', status: 'inactive', type: 'قانوني' },
-];
-
-function ActionMenu({ member, onStatusChange, onDelete }: { member: any, onStatusChange: (id: string, status: string) => void, onDelete: (id: string) => void }) {
+function ActionMenu({ member, onDelete }: { member: any, onDelete: (id: string) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -34,30 +29,11 @@ function ActionMenu({ member, onStatusChange, onDelete }: { member: any, onStatu
       {isOpen && (
         <div className="absolute top-full left-0 mt-1 w-48 bg-background border shadow-md rounded-md z-50 overflow-hidden text-right">
           <div className="p-1">
-            <button className="w-full text-right px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2 rounded-sm transition-colors">
-              <Edit className="h-4 w-4 text-primary" /> تعديل الصلاحيات
-            </button>
-            {member.status === 'active' ? (
-              <button 
-                onClick={() => { onStatusChange(member.id, 'inactive'); setIsOpen(false); }}
-                className="w-full text-right px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2 rounded-sm transition-colors text-amber-600"
-              >
-                <UserX className="h-4 w-4" /> إيقاف الحساب
-              </button>
-            ) : (
-              <button 
-                onClick={() => { onStatusChange(member.id, 'active'); setIsOpen(false); }}
-                className="w-full text-right px-3 py-2 text-sm hover:bg-muted/50 flex items-center gap-2 rounded-sm transition-colors text-emerald-600"
-              >
-                <CheckCircle2 className="h-4 w-4" /> تنشيط الحساب
-              </button>
-            )}
-            <div className="border-t my-1"></div>
             <button 
                onClick={() => { onDelete(member.id); setIsOpen(false); }}
                className="w-full text-right px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-2 rounded-sm transition-colors text-destructive"
             >
-              <Trash2 className="h-4 w-4" /> حذف نهائي
+              <Trash2 className="h-4 w-4" /> إيقاف حساب
             </button>
           </div>
         </div>
@@ -68,23 +44,56 @@ function ActionMenu({ member, onStatusChange, onDelete }: { member: any, onStatu
 
 export default function Team() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [team, setTeam] = useState(initialTeam);
 
-  const handleStatusChange = (id: string, status: string) => {
-    setTeam(team.map(m => m.id === id ? { ...m, status } : m));
-  };
+  const [newMember, setNewMember] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'LAWYER'
+  });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['team'],
+    queryFn: async () => {
+      const res = await api.get('/auth/team');
+      return res.data.data;
+    }
+  });
+
+  const { mutate: addMember, isPending: isAdding } = useMutation({
+    mutationFn: async () => {
+      await api.post('/auth/team', newMember);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      setShowAddForm(false);
+      setNewMember({ name: '', email: '', password: '', role: 'LAWYER' });
+    }
+  });
+
+  const { mutate: removeMember } = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/auth/team/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+    }
+  });
 
   const handleDelete = (id: string) => {
-    // In a real app, you might want to show a confirmation dialog first
-    setTeam(team.filter(m => m.id !== id));
+    if (window.confirm('هل أنت متأكد من إيقاف هذا الحساب؟')) {
+      removeMember(id);
+    }
   };
 
-  const isAdminOrOwner = user?.role === 'admin' || user?.role === 'owner';
+  const isAdminOrOwner = user?.role === 'ADMIN' || user?.role === 'OWNER';
 
-  const filteredTeam = team.filter(member => 
-    member.name.includes(searchQuery) || member.roleTitle.includes(searchQuery)
+  const team = data || [];
+  const filteredTeam = team.filter((member: any) => 
+    member.name.includes(searchQuery) || (member.role && member.role.includes(searchQuery))
   );
 
   return (
@@ -109,42 +118,59 @@ export default function Team() {
       )}
 
       {showAddForm && (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card className="border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-4 duration-300">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-primary" /> إرسال دعوة انضمام للمكتب
+              <UserPlus className="h-5 w-5 text-primary" /> إضافة عضو للفريق
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">الاسم الرباعي</label>
-                <Input placeholder="مثال: علي محمد محمود" />
+                <Input 
+                  placeholder="مثال: علي محمد محمود" 
+                  value={newMember.name} 
+                  onChange={e => setNewMember({ ...newMember, name: e.target.value })} 
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">البريد الإلكتروني</label>
-                <Input type="email" placeholder="ali@example.com" />
+                <Input 
+                  type="email" 
+                  placeholder="ali@example.com" 
+                  value={newMember.email} 
+                  onChange={e => setNewMember({ ...newMember, email: e.target.value })} 
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">المسمى الوظيفي</label>
-                <Input placeholder="مثال: محامي ابتدائي" />
+                <label className="text-sm font-medium">كلمة المرور الافتراضية</label>
+                <Input 
+                  type="text" 
+                  placeholder="كلمة المرور الأولية" 
+                  value={newMember.password} 
+                  onChange={e => setNewMember({ ...newMember, password: e.target.value })} 
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">مستوى الصلاحية والمشاهدة</label>
-                <select className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                  <option value="lawyer">محدود (يرى المهام والجلسات الموكلة له فقط)</option>
-                  <option value="admin">إداري (يرى المهام الإدارية ولا يرى المالية)</option>
-                  <option value="owner">شريك / مدير (صلاحيات كاملة للمنصة)</option>
+                <select 
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={newMember.role}
+                  onChange={e => setNewMember({ ...newMember, role: e.target.value })}
+                >
+                  <option value="LAWYER">محدود (محامي)</option>
+                  <option value="SECRETARY">سكرتارية</option>
+                  <option value="ADMIN">إداري (مدير فرعي)</option>
                 </select>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddForm(false)}>إلغاء</Button>
-              <Button onClick={() => setShowAddForm(false)}>إرسال رابط الدعوة</Button>
+              <Button onClick={() => addMember()} disabled={isAdding}>
+                {isAdding ? 'جاري الإضافة...' : 'إضافة للمكتب'}
+              </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1 font-medium">
-              <Lock className="h-3 w-3" /> سيتم إرسال رابط تسجيل مؤمن لبريده الإلكتروني؛ ليقوم بتعيين كلمة المرور الخاصة به.
-            </p>
           </CardContent>
         </Card>
       )}
@@ -173,37 +199,44 @@ export default function Team() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filteredTeam.map(member => (
+              {isLoading ? (
+                 <tr>
+                   <td colSpan={5} className="p-8 text-center text-muted-foreground">جاري تحميل الفريق...</td>
+                 </tr>
+              ) : filteredTeam.length === 0 ? (
+                 <tr>
+                   <td colSpan={5} className="p-8 text-center text-muted-foreground">لا يوجد أعضاء في الفريق مطابقين للبحث.</td>
+                 </tr>
+              ) : filteredTeam.map((member: any) => (
                 <tr key={member.id} className="hover:bg-muted/30 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0 uppercase">
                         {member.name.charAt(0)}
                       </div>
                       <div>
                         <p className="font-semibold text-base">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">{member.roleTitle}</p>
+                        <p className="text-xs text-muted-foreground">{member.role}</p>
                       </div>
                     </div>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-1.5">
-                      {member.role === 'owner' && <Shield className="h-4 w-4 text-indigo-500" />}
-                      {member.role === 'lawyer' && <Briefcase className="h-4 w-4 text-blue-500" />}
-                      {member.role === 'admin' && <User className="h-4 w-4 text-emerald-500" />}
+                      {member.role === 'OWNER' && <Shield className="h-4 w-4 text-indigo-500" />}
+                      {member.role === 'LAWYER' && <Briefcase className="h-4 w-4 text-blue-500" />}
+                      {(member.role === 'ADMIN' || member.role === 'SECRETARY') && <User className="h-4 w-4 text-emerald-500" />}
                       <span className="font-medium text-sm">
-                        {member.role === 'owner' ? 'إدارة كاملة' : member.role === 'admin' ? 'إدارة وسكرتارية' : 'وصول محدود'}
+                        {member.role === 'OWNER' ? 'إدارة كاملة' : member.role === 'ADMIN' ? 'إدارة وسكرتارية' : member.role === 'SECRETARY' ? 'سكرتارية' : 'وصول محدود'}
                       </span>
                     </div>
                   </td>
                   <td className="p-4">
                     <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                        <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {member.email}</span>
-                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {member.phone}</span>
                     </div>
                   </td>
                   <td className="p-4 text-center">
-                    {member.status === 'active' ? (
+                    {member.isActive ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold dark:bg-emerald-900/50 dark:text-emerald-400">
                          <CheckCircle2 className="h-3 w-3" /> نشط
                       </span>
@@ -214,8 +247,8 @@ export default function Team() {
                     )}
                   </td>
                   <td className="p-4 text-center">
-                    {isAdminOrOwner && member.role !== 'owner' ? (
-                      <ActionMenu member={member} onStatusChange={handleStatusChange} onDelete={handleDelete} />
+                    {isAdminOrOwner && member.role !== 'OWNER' && member.isActive ? (
+                      <ActionMenu member={member} onDelete={handleDelete} />
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>
                     )}

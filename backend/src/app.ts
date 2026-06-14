@@ -14,6 +14,10 @@ import financeRouter from './routes/finance'
 import dashboardRouter from './routes/dashboard'
 import aiRouter from './routes/ai'
 import documentsRouter from './routes/documents'
+import draftingRouter from './routes/drafting'
+import tasksRouter from './routes/tasks'
+import executionsRouter from './routes/executions'
+import libraryRouter from './routes/library'
 import { errorHandler } from './middleware/errorHandler'
 
 const app = express()
@@ -76,6 +80,10 @@ app.use('/api/finance', financeRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/documents', documentsRouter)
 app.use('/api/ai', aiRouter)
+app.use('/api/drafting', draftingRouter)
+app.use('/api/tasks', tasksRouter)
+app.use('/api/executions', executionsRouter)
+app.use('/api/library', libraryRouter)
 
 // ══════════════════════════════════════
 // Frontend - خدمة الفرونت إند من نفس السيرفر

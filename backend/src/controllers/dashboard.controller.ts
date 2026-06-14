@@ -400,3 +400,105 @@ export async function getAlerts(req: AuthRequest, res: Response) {
     return res.status(500).json({ error: 'حدث خطأ في جلب التنبيهات' })
   }
 }
+
+// ── GET /api/dashboard/reports ──
+export async function getReports(req: AuthRequest, res: Response) {
+  try {
+    const orgId = req.user!.organizationId
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+
+    const [
+      totalCases,
+      activeCases,
+      closedCases,
+      totalClients,
+      totalInvoicesThisMonth,
+      totalExpensesThisMonth,
+      totalInvoicesThisYear,
+      casesByStatus,
+      monthlyRevenue,
+    ] = await Promise.all([
+      prisma.case.count({ where: { organizationId: orgId } }),
+      prisma.case.count({
+        where: {
+          organizationId: orgId,
+          status: { in: ['ACTIVE', 'RESERVED', 'WITH_EXPERTS', 'APPEALED'] },
+        },
+      }),
+      prisma.case.count({ where: { organizationId: orgId, status: 'CLOSED' } }),
+      prisma.client.count({ where: { organizationId: orgId, isActive: true } }),
+      prisma.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          status: 'PAID',
+          paidDate: { gte: startOfMonth },
+        },
+        _sum: { totalAmount: true },
+      }),
+      prisma.expense.aggregate({
+        where: {
+          organizationId: orgId,
+          date: { gte: startOfMonth },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          status: 'PAID',
+          paidDate: { gte: startOfYear },
+        },
+        _sum: { totalAmount: true },
+      }),
+      prisma.case.groupBy({
+        by: ['status'],
+        where: { organizationId: orgId },
+        _count: { status: true },
+      }),
+      // Monthly revenue for the last 6 months
+      prisma.$queryRaw`
+        SELECT 
+          TO_CHAR(DATE_TRUNC('month', "paidDate"), 'YYYY-MM') as month,
+          COALESCE(SUM("totalAmount"), 0) as total
+        FROM invoices
+        WHERE "organizationId" = ${orgId}
+          AND status = 'PAID'
+          AND "paidDate" >= ${new Date(now.getFullYear(), now.getMonth() - 5, 1)}
+        GROUP BY DATE_TRUNC('month', "paidDate")
+        ORDER BY month ASC
+      `,
+    ])
+
+    const statusLabels: Record<string, string> = {
+      ACTIVE: 'متداولة',
+      RESERVED: 'محجوزة للحكم',
+      WITH_EXPERTS: 'بالخبراء',
+      APPEALED: 'مستأنفة',
+      CLOSED: 'منتهية',
+      SUSPENDED: 'موقوفة',
+    }
+
+    return res.json({
+      totalCases,
+      activeCases,
+      closedCases,
+      totalClients,
+      revenueThisMonth: Number(totalInvoicesThisMonth._sum.totalAmount || 0),
+      expensesThisMonth: Number(totalExpensesThisMonth._sum.amount || 0),
+      revenueThisYear: Number(totalInvoicesThisYear._sum.totalAmount || 0),
+      profitThisMonth:
+        Number(totalInvoicesThisMonth._sum.totalAmount || 0) -
+        Number(totalExpensesThisMonth._sum.amount || 0),
+      casesByStatus: casesByStatus.map((s) => ({
+        name: statusLabels[s.status] || s.status,
+        value: s._count.status,
+      })),
+      monthlyRevenue,
+    })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ في جلب التقارير' })
+  }
+}

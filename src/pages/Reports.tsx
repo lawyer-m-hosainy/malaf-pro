@@ -13,14 +13,23 @@ export default function Reports() {
     casesByJurisdiction, totalClients,
     totalIncome, totalPending, totalExpenses, netProfit,
     incomeByMonth, topClients,
+    isLoading, error
   } = useReportsData();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ar-EG').format(amount) + ' جنيه';
   };
 
-  const pieData = Object.entries(casesByJurisdiction).map(([name, value]) => ({ name, value }));
+  const pieData = Object.entries(casesByJurisdiction || {}).map(([name, value]) => ({ name, value }));
   const COLORS = ['#1D9E75','#3B8BD4','#E8593C','#BA7517','#7F77DD'];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 animate-in fade-in">
+        <h2 className="text-xl font-bold text-muted-foreground">جاري تحميل التقارير...</h2>
+      </div>
+    );
+  }
 
   if (totalCases === 0 && totalClients === 0 && totalIncome === 0) {
     return (
