@@ -1,11 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { useNotificationEngine } from '@/hooks/useNotificationEngine';
+import { NotificationPanel } from '@/components/NotificationPanel';
 
 export function HeaderNotifications() {
-  const [hasUnread, setHasUnread] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  
+  // تشغيل محرك الإشعارات في الخلفية لإنشاء التنبيهات تلقائياً
+  useNotificationEngine();
+  
+  const unreadCount = useNotificationStore(state => state.unreadCount);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -19,39 +26,25 @@ export function HeaderNotifications() {
 
   const toggle = () => {
     setIsOpen(!isOpen);
-    if (!isOpen) setHasUnread(false);
   };
 
   return (
     <div className="relative" ref={ref}>
-      <Button variant="ghost" size="icon" className="relative mr-2" onClick={toggle}>
-        <Bell className="h-5 w-5" />
-        {hasUnread && (
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className={`relative mr-2 transition-colors hover:bg-primary/10 ${isOpen ? 'bg-primary/10' : ''}`} 
+        onClick={toggle}
+      >
+        <Bell className={`h-5 w-5 ${unreadCount > 0 ? 'text-primary animate-[wiggle_1s_ease-in-out_infinite]' : 'text-muted-foreground'}`} />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1.5 h-4 w-4 rounded-full bg-destructive text-[10px] font-bold text-white flex items-center justify-center border-2 border-background shadow-sm">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
         )}
       </Button>
-      {isOpen && (
-        <div className="absolute top-full mt-2 left-0 w-80 bg-background border shadow-md rounded-md z-50">
-          <div className="p-3 border-b font-semibold">التنبيهات والإشعارات</div>
-          <div className="max-h-[300px] overflow-y-auto">
-            <div className="p-3 border-b hover:bg-muted/50 transition-colors">
-              <p className="text-sm font-medium text-destructive">مهمة إدارية متأخرة</p>
-              <p className="text-xs text-muted-foreground mt-1">يجب استخراج صورة رسمية من محضر جلسة أمس (125/2024)</p>
-              <p className="text-[10px] text-muted-foreground mt-2 font-mono">منذ ساعتين</p>
-            </div>
-            <div className="p-3 border-b hover:bg-muted/50 transition-colors">
-              <p className="text-sm font-medium text-amber-600">تذكير بجلسة غداً</p>
-              <p className="text-xs text-muted-foreground mt-1">لديك جلسة غداً في محكمة القاهرة الجديدة (قضية 142/2024)</p>
-              <p className="text-[10px] text-muted-foreground mt-2 font-mono">منذ 5 ساعات</p>
-            </div>
-            <div className="p-3 hover:bg-muted/50 transition-colors">
-              <p className="text-sm font-medium">تم سداد دفعة أتعاب</p>
-              <p className="text-xs text-muted-foreground mt-1">تم سداد مبلغ 50,000 ج.م من الموكل شركة النيل للتجارة</p>
-              <p className="text-[10px] text-muted-foreground mt-2 font-mono">أمس</p>
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {isOpen && <NotificationPanel onClose={() => setIsOpen(false)} />}
     </div>
   );
 }
