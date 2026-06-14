@@ -9,6 +9,8 @@ import casesRouter from './routes/cases'
 import sessionsRouter from './routes/sessions'
 import consultationsRouter from './routes/consultations'
 import financeRouter from './routes/finance'
+import dashboardRouter from './routes/dashboard'
+import aiRouter from './routes/ai'
 import { errorHandler } from './middleware/errorHandler'
 const app = express()
 
@@ -60,6 +62,8 @@ app.use('/api/cases', casesRouter)
 app.use('/api/sessions', sessionsRouter)
 app.use('/api/consultations', consultationsRouter)
 app.use('/api/finance', financeRouter)
+app.use('/api/dashboard', dashboardRouter)
+app.use('/api/ai', aiRouter)
 // app.use('/api/clients', clientsRouter)
 // ...
 
