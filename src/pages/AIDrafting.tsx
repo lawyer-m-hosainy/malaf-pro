@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Bot, Sparkles, MessageSquare, FileText, Lightbulb, Copy, CopyCheck, Scale, CheckCircle2, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { Bot, Sparkles, MessageSquare, FileText, Lightbulb, Copy, CopyCheck, Scale, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api';
+import { useMutation } from '@tanstack/react-query';
 
 type Tab = 'drafting' | 'summarize' | 'search';
 
@@ -49,8 +50,29 @@ export default function AIDrafting() {
   const [activeTab, setActiveTab] = useState<Tab>('drafting');
   const [inputState, setInputState] = useState('');
   const [outputState, setOutputState] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const { mutate: generate, isPending: isGenerating } = useMutation({
+    mutationFn: async () => {
+      let res;
+      if (activeTab === 'drafting') {
+        res = await api.post('/ai/draft', { type: 'other', details: inputState });
+        return res.data.content;
+      } else if (activeTab === 'summarize') {
+        res = await api.post('/ai/analyze', { task: 'review', text: inputState });
+        return res.data.analysis;
+      } else {
+        res = await api.post('/ai/search', { query: inputState });
+        return res.data.answer;
+      }
+    },
+    onSuccess: (data) => {
+      setOutputState(data);
+    },
+    onError: () => {
+      setOutputState('حدث خطأ أثناء معالجة الطلب عبر الذكاء الاصطناعي. الرجاء المحاولة مرة أخرى لاحقاً.');
+    }
+  });
 
   const handleCopy = (e: React.MouseEvent, id: number, text: string) => {
     e.stopPropagation();
@@ -59,22 +81,14 @@ export default function AIDrafting() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleCopyOutput = () => {
+    navigator.clipboard.writeText(outputState);
+  };
+
   const handleGenerate = () => {
     if (!inputState.trim()) return;
-    setIsGenerating(true);
-    // Simulate generation
-    setTimeout(() => {
-      let result = '';
-      if (activeTab === 'drafting') {
-        result = `إنه في يوم المـوافـق    /   /   202 \n\nبناء على طلب السيد / ..................... المقيم في ........................ \nأنا ..................... محضر محكمة ............ قد انتقلت وأعلنت:\n\nالسيد / ......................... المقيم في .......................\n\nبالموضوع\n(هذه مسودة أولية تم إنشاؤها بناءً على المعطيات المدخلة، يرجى المراجعة والتدقيق القانوني وإضافة الأسانيد اللازمة)`;
-      } else if (activeTab === 'summarize') {
-        result = `ملخص المستند:\n1. التزامات الطرف الأول: تسليم العين بموعد أقصاه الأول من مارس.\n2. التزامات الطرف الثاني: سداد الدفعة المقدمة وقدرها 50% من إجمالي القيمة.\n3. الشروط الجزائية: يطبق غرامة تأخير قدرها ألف جنيه عن كل يوم.\n\nتنبيه: يتضمن البند الخامس شرط تحكيم قد يحرم موكلك من اللجوء للقضاء العادي.`;
-      } else {
-        result = `وفقاً لقانون المرافعات، ميعاد الاستئناف في الأحكام المدنية والتجارية هو (40) يوماً ما لم ينص القانون على غير ذلك، ويبدأ الميعاد من تاريخ إعلان الحكم. \n\nالسند القانوني: المادة 227 من قانون المرافعات.`;
-      }
-      setOutputState(result);
-      setIsGenerating(false);
-    }, 2000);
+    setOutputState('');
+    generate();
   };
 
   return (
@@ -168,7 +182,7 @@ export default function AIDrafting() {
                   <div className="mt-8 pt-6 border-t animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="font-medium text-primary">النتيجة:</h3>
-                      <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                      <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={handleCopyOutput}>
                         <Copy className="h-4 w-4" /> نسخ النص
                       </Button>
                     </div>

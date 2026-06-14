@@ -3,44 +3,34 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Scale } from 'lucide-react';
+import { Scale, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
-import { User, UserRole } from '@/types';
+import { api } from '@/lib/api';
 
 export default function Login() {
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
+  const setAuth = useAuthStore((state) => state.setAuth);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    let role: UserRole | null = null;
-
-    if (email === 'admin@malafpro.com' && password === 'admin123') {
-      role = 'admin';
-    } else if (email === 'lawyer@malafpro.com' && password === 'lawyer123') {
-      role = 'lawyer';
-    } else if (email === 'client@malafpro.com' && password === 'client123') {
-      role = 'client';
-    }
-
-    if (role) {
-      const user: User = {
-        id: Math.random().toString(36).substring(2, 9),
-        name: email.split('@')[0],
-        email: email,
-        role: role,
-        organizationId: 'org-1'
-      };
-      login(user);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { user, token } = response.data;
+      
+      setAuth(user, token);
       navigate('/dashboard');
-    } else {
-      setError('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'حدث خطأ أثناء تسجيل الدخول. تأكد من بياناتك.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,6 +68,7 @@ export default function Login() {
                 className="text-right"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -96,12 +87,20 @@ export default function Login() {
                 dir="ltr"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button className="w-full" type="submit">
-              تسجيل الدخول
+            <Button className="w-full" type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  جاري تسجيل الدخول...
+                </>
+              ) : (
+                'تسجيل الدخول'
+              )}
             </Button>
             <div className="text-sm text-center text-muted-foreground pt-4 border-t w-full">
               بالنقر على تسجيل الدخول، أنت توافق على{' '}

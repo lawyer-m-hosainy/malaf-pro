@@ -2,43 +2,66 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Calendar as CalendarIcon, MapPin, AlertCircle, CheckCircle2, ChevronLeft, CalendarClock, Printer } from 'lucide-react';
+import { Plus, Search, Calendar as CalendarIcon, MapPin, AlertCircle, CheckCircle2, CalendarClock, Printer, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
-
-// Mock data for sessions
-const initialSessions = [
-  { id: 'S-001', rollNumber: '12', caseId: 'C-2024-001', caseTitle: 'جناية تزوير - النيل للتجارة', internalId: '125/2024', type: 'مرافعة', status: 'upcoming', date: '2024-06-25', time: '09:00 ص', court: 'محكمة استئناف القاهرة', hall: 'قاعة 4', priority: 'high', requirements: 'شهادة من البنك + مذكرة الدفاع الختامية', assignee: 'أ. محمد الحسيني', decision: 'يحدد لاحقاً' },
-  { id: 'S-002', rollNumber: '45', caseId: 'C-2024-002', caseTitle: 'نزاع علامة تجارية', internalId: '126/2024', type: 'خبراء', status: 'upcoming', date: '2024-06-25', time: '10:30 ص', court: 'مكتب خبراء وزارة العدل', hall: 'مكتب الخبير الهندسي', priority: 'medium', requirements: 'تقديم حافظة مستندات بالصور', assignee: 'محامي ابتدائي', decision: 'يحدد لاحقاً' },
-  { id: 'S-003', rollNumber: '88', caseId: 'C-2024-003', caseTitle: 'طعن ضريبي - مؤسسة الأهرام', internalId: '127/2024', type: 'نطق بالحكم', status: 'upcoming', date: '2024-06-30', time: '09:00 ص', court: 'محكمة القضاء الإداري', hall: 'الدائرة الأولى', priority: 'high', requirements: 'استخراج صورة من مسودة الحكم', assignee: 'المندوب الإداري', decision: 'يحدد لاحقاً' },
-  { id: 'S-004', rollNumber: '10', caseId: 'C-2024-004', caseTitle: 'إخلاء لعدم سداد الأجرة', internalId: '15/2022', type: 'إعادة إعلان', status: 'past', date: '2024-05-10', time: '09:00 ص', court: 'محكمة شمال القاهرة', hall: 'الدائرة المدنية', priority: 'low', requirements: 'إعلان الخصم بالصحيفة', assignee: 'المندوب', decision: 'تأجيل للإعلان والمستندات' },
-];
+import { format } from 'date-fns';
 
 export default function Sessions() {
   const { user } = useAuthStore();
-  const [sessions, setSessions] = useState(initialSessions);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
 
-  const filteredSessions = sessions.filter(s => {
-    if (user?.role === 'lawyer' && s.assignee !== user.name) {
-      return false;
+  const { data: sessions = [], isLoading } = useQuery({
+    queryKey: ['sessions'],
+    queryFn: async () => {
+      const res = await api.get('/sessions');
+      // The API returns { data: sessions, total: ... }
+      const sessionsData = res.data.data || [];
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return sessionsData.map((s: any) => {
+        const sessionDate = new Date(s.date);
+        return {
+          id: s.id,
+          caseId: s.case?.id,
+          caseTitle: s.case?.title || 'قضية بدون عنوان',
+          internalId: s.case?.internalId || '-',
+          type: s.type,
+          status: sessionDate >= today ? 'upcoming' : 'past',
+          date: format(sessionDate, 'yyyy-MM-dd'),
+          time: s.time,
+          court: s.case?.jurisdiction || 'غير محدد',
+          hall: s.case?.degree || '',
+          priority: 'normal',
+          requirements: s.notes || 'لا يوجد تكليفات',
+          assignee: s.lawyer?.name || 'غير محدد',
+          decision: s.result || 'يحدد لاحقاً',
+          rollNumber: '-'
+        };
+      });
     }
-    const matchesSearch = s.caseTitle.includes(searchQuery) || s.rollNumber.includes(searchQuery) || s.court.includes(searchQuery);
+  });
+
+  const filteredSessions = sessions.filter((s: any) => {
+    const matchesSearch = s.caseTitle.includes(searchQuery) || s.court.includes(searchQuery);
     const matchesTab = activeTab === 'upcoming' ? s.status === 'upcoming' : s.status === 'past';
     return matchesSearch && matchesTab;
   });
 
-  // Group upcoming sessions by date
-  const groupedSessions = filteredSessions.reduce((acc, session) => {
+  // Group filtered sessions by date
+  const groupedSessions = filteredSessions.reduce((acc: any, session: any) => {
     if (!acc[session.date]) {
       acc[session.date] = [];
     }
     acc[session.date].push(session);
     return acc;
-  }, {} as Record<string, typeof initialSessions>);
+  }, {});
 
   return (
     <div className="space-y-6 relative">
@@ -51,7 +74,7 @@ export default function Sessions() {
           <Button variant="outline" className="gap-2 shadow-sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4" /> طباعة رول اليوم
           </Button>
-          {(user?.role === 'admin' || user?.role === 'owner') && (
+          {(user?.role === 'ADMIN' || user?.role === 'OWNER') && (
             <Button className="gap-2 shadow-sm">
               <Plus className="h-4 w-4" /> إضافة جلسة
             </Button>
@@ -64,7 +87,7 @@ export default function Sessions() {
           <div className="relative w-full md:max-w-md">
              <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input 
-               placeholder="بحث برقم الرول، المحكمة، أو اسم القضية..." 
+               placeholder="بحث بالمحكمة، أو اسم القضية..." 
                className="pr-10 bg-muted/20"
                value={searchQuery}
                onChange={e => setSearchQuery(e.target.value)}
@@ -96,13 +119,18 @@ export default function Sessions() {
           </div>
 
           <div className="space-y-8">
-            {Object.keys(groupedSessions).length === 0 ? (
+            {isLoading ? (
+              <div className="text-center p-12 text-muted-foreground flex flex-col items-center justify-center min-h-[300px]">
+                <Loader2 className="h-12 w-12 mb-3 animate-spin text-primary" />
+                <p className="text-lg font-semibold">جاري تحميل الجلسات...</p>
+              </div>
+            ) : Object.keys(groupedSessions).length === 0 ? (
                <div className="text-center p-12 text-muted-foreground flex flex-col items-center justify-center min-h-[300px]">
                  <CalendarClock className="h-12 w-12 mb-3 opacity-20" />
                  <p className="text-lg font-semibold">لا توجد جلسات {activeTab === 'upcoming' ? 'قادمة' : 'سابقة'} مسجلة</p>
                </div>
             ) : (
-               (Object.entries(groupedSessions) as [string, typeof initialSessions][]).sort(([dateA], [dateB]) => activeTab === 'upcoming' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA)).map(([date, dateSessions]) => (
+               (Object.entries(groupedSessions) as [string, any[]][]).sort(([dateA], [dateB]) => activeTab === 'upcoming' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA)).map(([date, dateSessions]) => (
                  <div key={date} className="print:break-inside-avoid">
                     <h3 className="bg-muted px-4 py-3 rounded-lg font-bold text-lg mb-4 flex items-center gap-2 border shadow-sm print:bg-gray-200 print:text-black print:border-black print:shadow-none">
                       <CalendarIcon className="h-5 w-5 text-primary print:text-black" />
@@ -119,24 +147,14 @@ export default function Sessions() {
                            session.priority === 'high' ? "border-r-4 border-r-rose-500 bg-rose-50/30 dark:bg-rose-900/10" : "bg-card hover:bg-muted/30"
                          )}>
                             
-                            {/* Roll Number Box */}
-                            <div className="flex flex-row md:flex-col items-center gap-2 md:w-28 md:border-l md:pl-4 print:border-l print:border-black">
-                               <div className="text-center bg-muted/50 print:bg-gray-100 rounded-lg p-2 w-full border print:border-black shadow-sm group">
-                                  <p className="text-[11px] font-bold text-muted-foreground print:text-gray-600 mb-1">رقم الرول</p>
-                                  <p className="text-3xl font-black font-mono text-foreground print:text-black group-hover:scale-110 transition-transform">{session.rollNumber}</p>
-                               </div>
-                               <div className="text-center w-full">
-                                  <p className="text-[10px] font-bold text-muted-foreground mt-2 mb-0.5">موعد الحضور</p>
-                                  <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 font-bold font-mono text-xs px-2 py-1 rounded block">{session.time}</span>
-                               </div>
-                            </div>
-                            
                             {/* Session Details */}
                             <div className="flex-1 space-y-3">
                                <div className="flex flex-col md:flex-row md:items-start justify-between gap-2">
                                   <div>
                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-bold bg-primary/10 text-primary px-2 py-0.5 rounded text-xs print:border print:border-black print:text-black print:bg-white">{session.type}</span>
+                                        <span className="font-bold bg-primary/10 text-primary px-2 py-0.5 rounded text-xs print:border print:border-black print:text-black print:bg-white">
+                                          {session.type === 'HEARING' ? 'مرافعة' : session.type === 'EXPERT' ? 'خبراء' : session.type === 'JUDGMENT' ? 'نطق بالحكم' : session.type}
+                                        </span>
                                         {session.priority === 'high' && <span className="flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded print:border print:border-black print:text-black print:bg-white"><AlertCircle className="h-3 w-3" /> هام وعاجل</span>}
                                         {session.status === 'past' && <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded print:border print:border-black print:text-black print:bg-white"><CheckCircle2 className="h-3 w-3" /> منتهية</span>}
                                      </div>
@@ -168,9 +186,15 @@ export default function Sessions() {
                                      <span className="font-semibold">المحامي المكلف بالحضور:</span>
                                      <span className="font-bold text-foreground print:text-black bg-muted print:bg-gray-100 px-2 py-0.5 rounded shadow-sm border print:border-gray-400 max-w-[150px] truncate" title={session.assignee}>{session.assignee}</span>
                                   </div>
-                                  <div className="flex items-center gap-2 text-muted-foreground print:text-black">
-                                     <span className="font-semibold">القرار:</span>
-                                     <span className="font-black text-foreground print:text-black bg-muted print:bg-gray-100 px-2 py-0.5 rounded border print:border-gray-400">{session.decision}</span>
+                                  <div className="flex items-center gap-4 text-muted-foreground print:text-black">
+                                     <div className="flex items-center gap-2">
+                                       <span className="font-semibold">الوقت:</span>
+                                       <span className="font-mono text-foreground">{session.time}</span>
+                                     </div>
+                                     <div className="flex items-center gap-2">
+                                       <span className="font-semibold">القرار:</span>
+                                       <span className="font-black text-foreground print:text-black bg-muted print:bg-gray-100 px-2 py-0.5 rounded border print:border-gray-400">{session.decision}</span>
+                                     </div>
                                   </div>
                                </div>
                                
