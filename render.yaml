@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: malaf-pro
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: "cd backend && npm install && cd .. && npm install && npm run build && cd backend && npx prisma generate"
+    startCommand: "cd backend && npm run start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://malaf.pro
