@@ -3,7 +3,8 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { env } from './config/env'
-
+import authRouter from './routes/auth'
+import { errorHandler } from './middleware/errorHandler'
 const app = express()
 
 // Security headers
@@ -48,7 +49,7 @@ app.get('/health', (_, res) => {
 })
 
 // Routes هتتضاف هنا في Prompts الجاية
-// app.use('/api/auth', authRouter)
+app.use('/api/auth', authRouter)
 // app.use('/api/clients', clientsRouter)
 // ...
 
@@ -56,5 +57,7 @@ app.get('/health', (_, res) => {
 app.use('*', (_, res) => {
   res.status(404).json({ error: 'المسار غير موجود' })
 })
+
+app.use(errorHandler)
 
 export default app
