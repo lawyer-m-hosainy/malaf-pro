@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ══════════════════════════════════════
+// 1. المنظمة (مكتب المحاماة)
+// ══════════════════════════════════════
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  plan        Plan     @default(TRIAL)
+  phone       String?
+  email       String?
+  address     String?
+  licenseNo   String?
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users         User[]
+  clients       Client[]
+  cases         Case[]
+  sessions      Session[]
+  consultations Consultation[]
+  invoices      Invoice[]
+  documents     Document[]
+  expenses      Expense[]
+
+  @@map("organizations")
+}
+
+enum Plan {
+  TRIAL
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+// ══════════════════════════════════════
+// 2. المستخدمين (فريق المكتب)
+// ══════════════════════════════════════
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(LAWYER)
+  isActive       Boolean  @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Relations
+  assignedCases    Case[]         @relation("AssignedLawyer")
+  sessions         Session[]      @relation("SessionLawyer")
+  consultations    Consultation[] @relation("ConsultationLawyer")
+  documents        Document[]     @relation("CreatedBy")
+  refreshTokens    RefreshToken[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  LAWYER
+  SECRETARY
+  CLIENT
+}
+
+// ══════════════════════════════════════
+// 3. Refresh Tokens (أمان الجلسات)
+// ══════════════════════════════════════
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ══════════════════════════════════════
+// 4. الموكلين
+// ══════════════════════════════════════
+model Client {
+  id             String   @id @default(cuid())
+  name           String
+  nationalId     String
+  phone          String?
+  email          String?
+  address        String?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  // Relations
+  cases         Case[]
+  consultations Consultation[]
+  invoices      Invoice[]
+
+  // رقم قومي فريد داخل نفس المكتب
+  @@unique([nationalId, organizationId])
+  @@index([organizationId])
+  @@index([name])
+  @@map("clients")
+}
+
+// ══════════════════════════════════════
+// 5. القضايا
+// ══════════════════════════════════════
+model Case {
+  id             String      @id @default(cuid())
+  internalId     String      // رقم القضية الداخلي في المكتب
+  caseNumber     String      // رقم القضية في المحكمة
+  year           String
+  title          String
+  jurisdiction   String      // نوع المحكمة: القضاء العادي / الإداري / الاقتصادي
+  branch         String      // الدائرة
+  degree         String      // الدرجة: ابتدائي / استئناف / نقض
+  clientRole     String      // دور الموكل: مدعي / مدعى عليه / متهم
+  opponent       String
+  status         CaseStatus  @default(ACTIVE)
+  nextSession    DateTime?
+  description    String?
+  closedAt       DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Foreign Keys
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  clientId         String?
+  client           Client?      @relation(fields: [clientId], references: [id])
+  assignedLawyerId String?
+  assignedLawyer   User?        @relation("AssignedLawyer", fields: [assignedLawyerId], references: [id])
+
+  // Relations
+  sessions      Session[]
+  documents     Document[]
+  invoices      Invoice[]
+  caseUpdates   CaseUpdate[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@index([nextSession])
+  @@map("cases")
+}
+
+enum CaseStatus {
+  ACTIVE       // متداولة
+  RESERVED     // محجوزة للحكم
+  WITH_EXPERTS // بالخبراء
+  APPEALED     // مستأنفة
+  CLOSED       // منتهية
+  SUSPENDED    // موقوفة
+}
+
+// ══════════════════════════════════════
+// 6. سجل تحديثات القضية (Audit Log)
+// ══════════════════════════════════════
+model CaseUpdate {
+  id        String   @id @default(cuid())
+  action    String   // "status_changed", "session_added", etc.
+  details   String
+  createdAt DateTime @default(now())
+
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@map("case_updates")
+}
+
+// ══════════════════════════════════════
+// 7. الجلسات
+// ══════════════════════════════════════
+model Session {
+  id              String        @id @default(cuid())
+  date            DateTime
+  time            String
+  type            SessionType   @default(HEARING)
+  result          String?
+  nextSessionDate DateTime?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Foreign Keys
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  caseId          String
+  case            Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  lawyerId        String?
+  lawyer          User?         @relation("SessionLawyer", fields: [lawyerId], references: [id])
+
+  @@index([organizationId])
+  @@index([caseId])
+  @@index([date])
+  @@map("sessions")
+}
+
+enum SessionType {
+  HEARING       // مرافعة
+  DOCUMENTS     // تقديم مستندات
+  EXPERTISE     // خبرة
+  JUDGMENT      // حكم
+  OTHER         // أخرى
+}
+
+// ══════════════════════════════════════
+// 8. الاستشارات
+// ══════════════════════════════════════
+model Consultation {
+  id           String              @id @default(cuid())
+  subject      String
+  type         ConsultationType    @default(IN_PERSON)
+  status       ConsultationStatus  @default(SCHEDULED)
+  date         DateTime
+  fee          Decimal?            @db.Decimal(10, 2)
+  isPaid       Boolean             @default(false)
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  clientId       String?
+  client         Client?      @relation(fields: [clientId], references: [id])
+  lawyerId       String?
+  lawyer         User?        @relation("ConsultationLawyer", fields: [lawyerId], references: [id])
+
+  @@index([organizationId])
+  @@index([date])
+  @@map("consultations")
+}
+
+enum ConsultationType {
+  PHONE      // هاتفي
+  IN_PERSON  // حضوري
+  ONLINE     // عبر الإنترنت
+}
+
+enum ConsultationStatus {
+  SCHEDULED  // مجدولة
+  COMPLETED  // مكتملة
+  CANCELLED  // ملغاة
+}
+
+// ══════════════════════════════════════
+// 9. الفواتير
+// ══════════════════════════════════════
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime?
+  paidDate      DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  clientId       String?
+  client         Client?       @relation(fields: [clientId], references: [id])
+  caseId         String?
+  case           Case?         @relation(fields: [caseId], references: [id])
+
+  // Relations
+  items          InvoiceItem[]
+
+  @@unique([invoiceNumber, organizationId])
+  @@index([organizationId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  description String
+  amount      Decimal @db.Decimal(10, 2)
+  quantity    Int     @default(1)
+
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+enum InvoiceStatus {
+  DRAFT    // مسودة
+  SENT     // مرسلة
+  PAID     // مدفوعة
+  OVERDUE  // متأخرة
+  CANCELED // ملغاة
+}
+
+// ══════════════════════════════════════
+// 10. المصروفات
+// ══════════════════════════════════════
+model Expense {
+  id             String   @id @default(cuid())
+  description    String
+  amount         Decimal  @db.Decimal(10, 2)
+  category       String
+  date           DateTime
+  receipt        String?
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([date])
+  @@map("expenses")
+}
+
+// ══════════════════════════════════════
+// 11. المستندات
+// ══════════════════════════════════════
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  type        String
+  fileUrl     String?
+  fileSize    Int?
+  mimeType    String?
+  content     String?  // للمستندات المنشأة بالذكاء الاصطناعي
+  tags        String[] @default([])
+  createdAt   DateTime @default(now())
+
+  // Foreign Keys
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  caseId         String?
+  case           Case?        @relation(fields: [caseId], references: [id])
+  createdById    String
+  createdBy      User         @relation("CreatedBy", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([caseId])
+  @@map("documents")
+}
