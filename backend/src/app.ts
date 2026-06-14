@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import path from 'path'
+import fs from 'fs'
 import rateLimit from 'express-rate-limit'
 import { env } from './config/env'
 import authRouter from './routes/auth'
@@ -18,9 +19,11 @@ import { errorHandler } from './middleware/errorHandler'
 const app = express()
 
 // Security headers
-app.use(helmet())
+app.use(helmet({
+  contentSecurityPolicy: false, // عشان الفرونت يشتغل صح
+}))
 
-// CORS - السماح للـ frontend فقط
+// CORS - السماح للـ frontend
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
@@ -74,12 +77,38 @@ app.use('/api/dashboard', dashboardRouter)
 app.use('/api/documents', documentsRouter)
 app.use('/api/ai', aiRouter)
 
-// 404 handler
-app.use('*', (_, res) => {
-  res.status(404).json({ error: 'المسار غير موجود' })
-})
+// ══════════════════════════════════════
+// Frontend - خدمة الفرونت إند من نفس السيرفر
+// ══════════════════════════════════════
+const frontendPath = path.join(__dirname, '../../dist')
+
+if (fs.existsSync(frontendPath)) {
+  // خدمة الملفات الثابتة (CSS, JS, Images)
+  app.use(express.static(frontendPath))
+
+  // SPA fallback - أي مسار مش API يرجع الفرونت
+  app.get('*', (req, res) => {
+    // لو المسار بيبدأ بـ /api يرجع 404
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'المسار غير موجود' })
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'))
+  })
+} else {
+  // لو الفرونت مش موجود (Development)
+  app.use('*', (req, res) => {
+    if (req.path.startsWith('/api/') || req.originalUrl.startsWith('/api/')) {
+      return res.status(404).json({ error: 'المسار غير موجود' })
+    }
+    res.status(200).json({
+      message: 'ملف برو API يعمل ✅',
+      hint: 'الفرونت إند مش موجود. شغله بـ npm run dev من المجلد الرئيسي',
+    })
+  })
+}
 
 // Global error handler
 app.use(errorHandler)
 
 export default app
+
