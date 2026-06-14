@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,9 @@ import { Plus, Search, X, FolderKanban, Scale, AlertCircle, Printer } from 'luci
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useLocalStore } from '@/store/useLocalStore';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { caseSchema, CaseFormData } from '@/lib/validationSchemas';
 
 const COURT_STRUCTURE = {
   "القضاء العادي": {
@@ -43,52 +46,72 @@ export default function Cases() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('الجميع');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
-  const [newCase, setNewCase] = useState({
-    title: '', internalId: '', caseNumber: '', year: new Date().getFullYear().toString(),
-    jurisdiction: 'القضاء العادي' as Jurisdiction,
-    branch: 'القضاء الجنائي',
-    degree: 'جنايات أول درجة',
-    clientName: '', clientRole: 'المدعي', opponent: ''
-  });
+  const [internalId, setInternalId] = useState('');
 
-  const handleOpenAddModal = () => {
-    const year = new Date().getFullYear();
-    const nextSeq = cases.length > 0 ? (cases.length * 14) + 124 : 124; // Auto-generated internal sequence
-    const generatedInternalId = `${nextSeq}/${year}`;
-
-    setNewCase({
-      title: '', internalId: generatedInternalId, caseNumber: '', year: year.toString(),
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CaseFormData>({
+    resolver: zodResolver(caseSchema),
+    defaultValues: {
       jurisdiction: 'القضاء العادي',
       branch: 'القضاء الجنائي',
       degree: 'جنايات أول درجة',
-      clientName: '', clientRole: 'المدعي', opponent: ''
+      clientRole: 'المدعي',
+      year: new Date().getFullYear().toString()
+    }
+  });
+
+  const selectedJurisdiction = watch('jurisdiction') as Jurisdiction;
+  const selectedBranch = watch('branch');
+
+  const handleOpenAddModal = () => {
+    const year = new Date().getFullYear();
+    const nextSeq = cases.length > 0 ? (cases.length * 14) + 124 : 124;
+    setInternalId(`${nextSeq}/${year}`);
+    reset({
+      year: year.toString(),
+      jurisdiction: 'القضاء العادي',
+      branch: 'القضاء الجنائي',
+      degree: 'جنايات أول درجة',
+      clientRole: 'المدعي'
     });
     setIsAddModalOpen(true);
   };
 
-  const handleJurisdictionChange = (j: Jurisdiction) => {
+  const onJurisdictionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const j = e.target.value as Jurisdiction;
+    setValue('jurisdiction', j);
     const branches = Object.keys(COURT_STRUCTURE[j]);
     const firstBranch = branches[0];
     const firstDegree = (COURT_STRUCTURE[j] as any)[firstBranch][0];
-    
-    setNewCase(prev => ({
-      ...prev, jurisdiction: j, branch: firstBranch, degree: firstDegree
-    }));
+    setValue('branch', firstBranch);
+    setValue('degree', firstDegree);
   };
 
-  const handleBranchChange = (b: string) => {
-    const degrees = (COURT_STRUCTURE[newCase.jurisdiction] as any)[b];
-    setNewCase(prev => ({
-      ...prev, branch: b, degree: degrees[0]
-    }));
+  const onBranchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const b = e.target.value;
+    setValue('branch', b);
+    const degrees = (COURT_STRUCTURE[selectedJurisdiction] as any)[b];
+    setValue('degree', degrees[0]);
   };
 
-  const handleAddCase = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newId = `C-${newCase.year}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
-    addCase({ ...newCase, id: newId, status: 'مفتوحة', nextSession: 'يحدد لاحقاً' });
+  const onSubmit = (data: CaseFormData) => {
+    const newId = `C-${data.year}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
+    addCase({
+      id: newId,
+      internalId,
+      title: data.title,
+      caseNumber: data.caseNumber,
+      year: data.year,
+      jurisdiction: data.jurisdiction,
+      branch: data.branch,
+      degree: data.degree,
+      clientName: data.clientName,
+      clientRole: data.clientRole,
+      opponent: data.opponent,
+      status: 'مفتوحة',
+      nextSession: 'يحدد لاحقاً'
+    });
     setIsAddModalOpen(false);
+    reset();
   };
 
   const filteredCases = cases.filter(c => {
@@ -126,7 +149,6 @@ export default function Cases() {
         </div>
       </div>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((stat, idx) => (
           <Card key={idx}>
@@ -149,7 +171,6 @@ export default function Cases() {
                onChange={e => setSearchQuery(e.target.value)}
              />
            </div>
-           {/* Filters */}
            <div className="flex bg-muted/50 p-1 border rounded-lg overflow-x-auto w-full sm:w-auto">
              {['الجميع', 'مفتوحة', 'محجوزة', 'منتهية'].map(f => (
                <button
@@ -261,7 +282,7 @@ export default function Cases() {
               </Button>
             </div>
             
-            <form onSubmit={handleAddCase} className="p-4 overflow-y-auto">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-4 overflow-y-auto">
               <div className="space-y-6">
                 
                 {/* القسم الأول: بيانات القضية الأساسية */}
@@ -270,22 +291,39 @@ export default function Cases() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2 lg:col-span-2">
                       <label className="text-sm font-medium">عنوان معبر للقضية <span className="text-destructive">*</span></label>
-                      <Input required placeholder="مثال: جناية تزوير - شركة النيل" value={newCase.title} onChange={e => setNewCase({...newCase, title: e.target.value})} />
+                      <Input 
+                        {...register('title')} 
+                        placeholder="مثال: جناية تزوير - شركة النيل" 
+                        className={errors.title ? 'border-destructive' : ''} 
+                      />
+                      {errors.title && <p className="text-destructive text-xs mt-1">{errors.title.message}</p>}
                     </div>
                     <div className="space-y-2 w-full lg:col-span-2">
                       <label className="text-sm font-medium text-indigo-700 dark:text-indigo-400 font-bold">رقم الأرشيف الداخلي للمكتب (يُصدر آلياً) <span className="text-destructive">*</span></label>
                       <div className="flex h-10 w-full items-center justify-end rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-900/40 px-3 py-2 text-sm text-indigo-700 dark:text-indigo-400 font-mono font-bold cursor-not-allowed select-none" dir="ltr">
-                         {newCase.internalId}
+                         {internalId}
                       </div>
                       <p className="text-[10px] text-muted-foreground">يتم إصدار هذا الرقم تلقائياً من المنصة لضمان تسلسل الأرشيف ومنع التلاعب، وسيُخصص للملف بشكل دائم.</p>
                     </div>
                     <div className="space-y-2 w-full">
                       <label className="text-sm font-medium">رقم الدعوى (للدرجة الحالية) <span className="text-destructive">*</span></label>
-                      <Input required placeholder="مثال: 12345" value={newCase.caseNumber} onChange={e => setNewCase({...newCase, caseNumber: e.target.value})} dir="ltr" className="text-right" />
+                      <Input 
+                        {...register('caseNumber')} 
+                        placeholder="مثال: 12345" 
+                        dir="ltr" 
+                        className={`text-right ${errors.caseNumber ? 'border-destructive' : ''}`} 
+                      />
+                      {errors.caseNumber && <p className="text-destructive text-xs mt-1">{errors.caseNumber.message}</p>}
                     </div>
                     <div className="space-y-2 w-full">
                       <label className="text-sm font-medium">لسنة <span className="text-destructive">*</span></label>
-                      <Input required placeholder="سنة مقامة الدعوى" value={newCase.year} onChange={e => setNewCase({...newCase, year: e.target.value})} dir="ltr" className="text-right" />
+                      <Input 
+                        {...register('year')} 
+                        placeholder="سنة مقامة الدعوى" 
+                        dir="ltr" 
+                        className={`text-right ${errors.year ? 'border-destructive' : ''}`} 
+                      />
+                      {errors.year && <p className="text-destructive text-xs mt-1">{errors.year.message}</p>}
                     </div>
                   </div>
                 </div>
@@ -295,36 +333,44 @@ export default function Cases() {
                   <h4 className="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-2">جهة التقاضي والاختصاص</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">الجهة القضائية</label>
-                      <select required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={newCase.jurisdiction}
-                        onChange={e => handleJurisdictionChange(e.target.value as Jurisdiction)}>
+                      <label className="text-sm font-medium">الجهة القضائية <span className="text-destructive">*</span></label>
+                      <select 
+                        {...register('jurisdiction')}
+                        onChange={onJurisdictionChange}
+                        className={`flex h-10 w-full rounded-md border ${errors.jurisdiction ? 'border-destructive' : 'border-input'} bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                      >
                         {Object.keys(COURT_STRUCTURE).map(j => (
                           <option key={j} value={j}>{j}</option>
                         ))}
                       </select>
+                      {errors.jurisdiction && <p className="text-destructive text-xs mt-1">{errors.jurisdiction.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">التصنيف / الفرع</label>
-                      <select required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={newCase.branch}
-                        onChange={e => handleBranchChange(e.target.value)}>
-                        {Object.keys(COURT_STRUCTURE[newCase.jurisdiction]).map(b => (
+                      <label className="text-sm font-medium">التصنيف / الفرع <span className="text-destructive">*</span></label>
+                      <select 
+                        {...register('branch')}
+                        onChange={onBranchChange}
+                        className={`flex h-10 w-full rounded-md border ${errors.branch ? 'border-destructive' : 'border-input'} bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                      >
+                        {selectedJurisdiction && Object.keys(COURT_STRUCTURE[selectedJurisdiction]).map(b => (
                           <option key={b} value={b}>{b}</option>
                         ))}
                       </select>
+                      {errors.branch && <p className="text-destructive text-xs mt-1">{errors.branch.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-blue-700 dark:text-blue-400">درجة التقاضي</label>
-                      <select required className="flex h-10 w-full rounded-md border border-blue-200 dark:border-blue-800 bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
-                        value={newCase.degree}
-                        onChange={e => setNewCase({...newCase, degree: e.target.value})}>
-                        {((COURT_STRUCTURE[newCase.jurisdiction] as any)[newCase.branch] || []).map((deg: string) => (
+                      <label className="text-sm font-medium text-blue-700 dark:text-blue-400">درجة التقاضي <span className="text-destructive">*</span></label>
+                      <select 
+                        {...register('degree')}
+                        className={`flex h-10 w-full rounded-md border ${errors.degree ? 'border-destructive' : 'border-blue-200 dark:border-blue-800'} bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold`}
+                      >
+                        {selectedJurisdiction && selectedBranch && ((COURT_STRUCTURE[selectedJurisdiction] as any)[selectedBranch] || []).map((deg: string) => (
                           <option key={deg} value={deg}>{deg}</option>
                         ))}
                       </select>
+                      {errors.degree && <p className="text-destructive text-xs mt-1">{errors.degree.message}</p>}
                     </div>
                   </div>
                 </div>
@@ -335,13 +381,19 @@ export default function Cases() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">اسم الموكل <span className="text-destructive">*</span></label>
-                        <Input required placeholder="اسم أو شركة الموكل..." value={newCase.clientName} onChange={e => setNewCase({...newCase, clientName: e.target.value})} />
+                        <Input 
+                          {...register('clientName')} 
+                          placeholder="اسم أو شركة الموكل..." 
+                          className={errors.clientName ? 'border-destructive' : ''} 
+                        />
+                        {errors.clientName && <p className="text-destructive text-xs mt-1">{errors.clientName.message}</p>}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">صفة الموكل بالدعوى <span className="text-destructive">*</span></label>
-                        <select required className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                          value={newCase.clientRole}
-                          onChange={e => setNewCase({...newCase, clientRole: e.target.value})}>
+                        <select 
+                          {...register('clientRole')}
+                          className={`flex h-10 w-full rounded-md border ${errors.clientRole ? 'border-destructive' : 'border-input'} bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                        >
                           <option value="المدعي">المدعي</option>
                           <option value="المدعى عليه">المدعى عليه</option>
                           <option value="الشاكي">الشاكي</option>
@@ -357,10 +409,16 @@ export default function Cases() {
                           <option value="طالب">طالب (في الأوامر والعرائض)</option>
                           <option value="مطلوب ضده">مطلوب ضده</option>
                         </select>
+                        {errors.clientRole && <p className="text-destructive text-xs mt-1">{errors.clientRole.message}</p>}
                       </div>
                       <div className="space-y-2 lg:col-span-2">
                         <label className="text-sm font-medium">اسم الخصم <span className="text-destructive">*</span></label>
-                        <Input required placeholder="اسم الخصم (شخص أو جهة)" value={newCase.opponent} onChange={e => setNewCase({...newCase, opponent: e.target.value})} />
+                        <Input 
+                          {...register('opponent')} 
+                          placeholder="اسم الخصم (شخص أو جهة)" 
+                          className={errors.opponent ? 'border-destructive' : ''} 
+                        />
+                        {errors.opponent && <p className="text-destructive text-xs mt-1">{errors.opponent.message}</p>}
                       </div>
                     </div>
                 </div>
@@ -369,7 +427,7 @@ export default function Cases() {
               
               <div className="pt-4 border-t flex justify-end gap-3 mt-6">
                 <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>إلغاء</Button>
-                <Button type="submit" className="gap-2">حفظ ملف القضية (جاري التطوير)</Button>
+                <Button type="submit" className="gap-2">حفظ ملف القضية</Button>
               </div>
             </form>
           </div>
@@ -378,4 +436,3 @@ export default function Cases() {
     </div>
   );
 }
-

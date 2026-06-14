@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, User, Edit, Printer, Building2, Globe2, X, Save } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useLocalStore } from '@/store/useLocalStore';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { clientSchema, ClientFormData } from '@/lib/validationSchemas';
 
 export default function Clients() {
   const { user } = useAuthStore();
@@ -13,16 +16,52 @@ export default function Clients() {
   const clients = useLocalStore(state => state.clients);
   const addClient = useLocalStore(state => state.addClient);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newClient, setNewClient] = useState({
-    name: '', type: 'شخص طبيعي', nationality: 'مصري', identityLabel: 'رقم قومي', identityNumber: '', phone: '', email: ''
+
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<ClientFormData>({
+    resolver: zodResolver(clientSchema),
+    defaultValues: {
+      type: 'شخص طبيعي',
+      nationality: 'مصري',
+      identityLabel: 'رقم قومي',
+      email: '',
+      phone: ''
+    }
   });
 
-  const handleAddClient = (e: React.FormEvent) => {
-    e.preventDefault();
+  const selectedType = watch('type');
+
+  const onTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const type = e.target.value;
+    setValue('type', type);
+    setValue('identityLabel', type === 'شخص طبيعي' ? 'رقم قومي' : 'سجل تجاري');
+  };
+
+  const handleOpenAddModal = () => {
+    reset({
+      type: 'شخص طبيعي',
+      nationality: 'مصري',
+      identityLabel: 'رقم قومي',
+      email: '',
+      phone: ''
+    });
+    setIsAddModalOpen(true);
+  };
+
+  const onSubmit = (data: ClientFormData) => {
     const newId = (clients.length + 1).toString();
-    addClient({ ...newClient, id: newId, cases: 0 });
+    addClient({
+      id: newId,
+      name: data.name,
+      type: data.type,
+      nationality: data.nationality,
+      identityLabel: data.identityLabel,
+      identityNumber: data.identityNumber,
+      phone: data.phone || '',
+      email: data.email || '',
+      cases: 0
+    });
     setIsAddModalOpen(false);
-    setNewClient({ name: '', type: 'شخص طبيعي', nationality: 'مصري', identityLabel: 'رقم قومي', identityNumber: '', phone: '', email: '' });
+    reset();
   };
 
   const handlePrint = () => {
@@ -37,7 +76,7 @@ export default function Clients() {
           <p className="text-sm text-muted-foreground mt-1">تتبع وإدارة جميع بيانات الموكلين (أشخاص طبيعيين أو اعتباريين، مصريين أو أجانب)</p>
         </div>
         {isAdminOrOwner && (
-          <Button className="gap-2" onClick={() => setIsAddModalOpen(true)}>
+          <Button className="gap-2" onClick={handleOpenAddModal}>
             <Plus className="h-4 w-4" /> إضافة موكل جديد
           </Button>
         )}
@@ -153,46 +192,50 @@ export default function Clients() {
               </Button>
             </div>
             
-            <form onSubmit={handleAddClient} className="p-4 space-y-4 overflow-y-auto">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-4 space-y-4 overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">الاسم الكامل / اسم الشركة <span className="text-red-500">*</span></label>
-                  <Input required placeholder="اكتب اسم الموكل..." value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
+                  <label className="text-sm font-medium">الاسم الكامل / اسم الشركة <span className="text-destructive">*</span></label>
+                  <Input 
+                    {...register('name')} 
+                    placeholder="اكتب اسم الموكل..." 
+                    className={errors.name ? 'border-destructive' : ''} 
+                  />
+                  {errors.name && <p className="text-destructive text-xs mt-1">{errors.name.message}</p>}
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">الصفة <span className="text-red-500">*</span></label>
-                  <select required className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring" 
-                    value={newClient.type} 
-                    onChange={e => {
-                      const type = e.target.value;
-                      setNewClient({
-                        ...newClient, 
-                        type, 
-                        identityLabel: type === 'شخص طبيعي' ? 'رقم قومي' : 'سجل تجاري'
-                      })
-                    }}>
+                  <label className="text-sm font-medium">الصفة <span className="text-destructive">*</span></label>
+                  <select 
+                    {...register('type')}
+                    onChange={onTypeChange}
+                    className={`flex h-10 w-full items-center justify-between rounded-md border ${errors.type ? 'border-destructive' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                  >
                     <option value="شخص طبيعي">شخص طبيعي</option>
                     <option value="شخص اعتباري">شخص اعتباري</option>
                   </select>
+                  {errors.type && <p className="text-destructive text-xs mt-1">{errors.type.message}</p>}
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">الجنسية <span className="text-red-500">*</span></label>
-                  <select required className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    value={newClient.nationality}
-                    onChange={e => setNewClient({...newClient, nationality: e.target.value})}>
+                  <label className="text-sm font-medium">الجنسية <span className="text-destructive">*</span></label>
+                  <select 
+                    {...register('nationality')}
+                    className={`flex h-10 w-full items-center justify-between rounded-md border ${errors.nationality ? 'border-destructive' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                  >
                     <option value="مصري">مصري</option>
                     <option value="أجنبي">أجنبي</option>
                   </select>
+                  {errors.nationality && <p className="text-destructive text-xs mt-1">{errors.nationality.message}</p>}
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">نوع الإثبات <span className="text-red-500">*</span></label>
-                  <select required className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    value={newClient.identityLabel}
-                    onChange={e => setNewClient({...newClient, identityLabel: e.target.value})}>
-                    {newClient.type === 'شخص طبيعي' ? (
+                  <label className="text-sm font-medium">نوع الإثبات <span className="text-destructive">*</span></label>
+                  <select 
+                    {...register('identityLabel')}
+                    className={`flex h-10 w-full items-center justify-between rounded-md border ${errors.identityLabel ? 'border-destructive' : 'border-input'} bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring`}
+                  >
+                    {selectedType === 'شخص طبيعي' ? (
                       <>
                         <option value="رقم قومي">رقم قومي</option>
                         <option value="جواز سفر">جواز سفر</option>
@@ -208,21 +251,41 @@ export default function Clients() {
                       </>
                     )}
                   </select>
+                  {errors.identityLabel && <p className="text-destructive text-xs mt-1">{errors.identityLabel.message}</p>}
                 </div>
                 
                 <div className="space-y-2 col-span-2">
-                  <label className="text-sm font-medium">رقم الإثبات <span className="text-red-500">*</span></label>
-                  <Input required placeholder="مثال: 29001011234567" value={newClient.identityNumber} onChange={e => setNewClient({...newClient, identityNumber: e.target.value})} dir="ltr" className="text-right" />
+                  <label className="text-sm font-medium">رقم الإثبات <span className="text-destructive">*</span></label>
+                  <Input 
+                    {...register('identityNumber')} 
+                    placeholder="مثال: 29001011234567" 
+                    dir="ltr" 
+                    className={`text-right ${errors.identityNumber ? 'border-destructive' : ''}`} 
+                  />
+                  {errors.identityNumber && <p className="text-destructive text-xs mt-1">{errors.identityNumber.message}</p>}
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">رقم الهاتف <span className="text-red-500">*</span></label>
-                  <Input required placeholder="مثال: 010xxxxxxxx" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} dir="ltr" className="text-right" />
+                  <label className="text-sm font-medium">رقم الهاتف <span className="text-destructive">*</span></label>
+                  <Input 
+                    {...register('phone')} 
+                    placeholder="مثال: 010xxxxxxxx" 
+                    dir="ltr" 
+                    className={`text-right ${errors.phone ? 'border-destructive' : ''}`} 
+                  />
+                  {errors.phone && <p className="text-destructive text-xs mt-1">{errors.phone.message}</p>}
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">البريد الإلكتروني</label>
-                  <Input type="email" placeholder="example@email.com" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} dir="ltr" className="text-right" />
+                  <Input 
+                    {...register('email')} 
+                    type="email" 
+                    placeholder="example@email.com" 
+                    dir="ltr" 
+                    className={`text-right ${errors.email ? 'border-destructive' : ''}`} 
+                  />
+                  {errors.email && <p className="text-destructive text-xs mt-1">{errors.email.message}</p>}
                 </div>
               </div>
               

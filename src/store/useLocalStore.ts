@@ -2,6 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Case, Client, FinanceItem } from '@/types';
 
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  uploadedAt: string;
+  caseId: string;
+}
+
 const initialCasesList: Case[] = [
   { id: 'C-2024-001', internalId: '125/2024', year: '2024', caseNumber: '1540', jurisdiction: 'القضاء العادي', branch: 'القضاء الجنائي', degree: 'جنايات مستأنفة', title: 'جناية تزوير - النيل للتجارة', clientName: 'شركة النيل للتجارة', clientRole: 'متهم', opponent: 'النيابة العامة', status: 'متداولة', nextSession: '2026-07-15' },
   { id: 'C-2024-002', internalId: '126/2024', year: '2023', caseNumber: '980', jurisdiction: 'المحاكم الاقتصادية', branch: 'مدني وتجاري اقتصادي', degree: 'اقتصادي ابتدائي', title: 'نزاع علامة تجارية', clientName: 'مؤسسة الأفق للبرمجيات', clientRole: 'المدعى عليه', opponent: 'شركة المنافس', status: 'محجوزة للحكم', nextSession: '2026-06-25' },
@@ -37,11 +47,15 @@ interface LocalStore {
   addFinance: (f: FinanceItem) => void;
   updateFinance: (id: string, data: Partial<FinanceItem>) => void;
   removeFinance: (id: string) => void;
+  files: UploadedFile[];
+  addFile: (f: UploadedFile) => void;
+  removeFile: (id: string) => void;
+  getFilesByCaseId: (caseId: string) => UploadedFile[];
 }
 
 export const useLocalStore = create<LocalStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       cases: initialCasesList,
       clients: initialClients,
       finance: initialFinance,
@@ -56,6 +70,11 @@ export const useLocalStore = create<LocalStore>()(
       addFinance: (f) => set((state) => ({ finance: [f, ...state.finance] })),
       updateFinance: (id, data) => set((state) => ({ finance: state.finance.map(f => f.id === id ? { ...f, ...data } : f) })),
       removeFinance: (id) => set((state) => ({ finance: state.finance.filter(f => f.id !== id) })),
+      
+      files: [],
+      addFile: (f) => set((state) => ({ files: [f, ...state.files] })),
+      removeFile: (id) => set((state) => ({ files: state.files.filter(f => f.id !== id) })),
+      getFilesByCaseId: (caseId) => get().files.filter(f => f.caseId === caseId),
     }),
     {
       name: 'malaf-local-storage',

@@ -1,39 +1,43 @@
-import { FileArchive, Plus, FileText, ArrowDownToLine } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { FileArchive, AlertCircle } from 'lucide-react';
+import { useFileUpload } from '@/hooks/useFileUpload';
+import { FileUploadZone } from '@/components/FileUploadZone';
+import { FileList } from '@/components/FileList';
 
-export function CaseDocuments({ documents }: any) {
+export function CaseDocuments({ caseId }: { caseId: string }) {
+  const { files, isUploading, error, uploadFile, removeFile, getFileIcon } = useFileUpload(caseId);
+
+  // حساب الحجم لتنبيه المستخدم
+  const totalSize = files.reduce((acc: number, f: any) => acc + f.size, 0);
+  const isNearLimit = totalSize > 40 * 1024 * 1024; // > 40MB
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <FileArchive className="h-5 w-5 text-primary" /> أرشيف المستندات والمذكرات المرتبطة
+          <FileArchive className="h-5 w-5 text-primary" /> إدارة مستندات ومرفقات القضية
         </h3>
-        <Button size="sm" variant="outline" className="gap-2"><Plus className="h-4 w-4" /> رفع مستند</Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        {documents.map((doc: any) => (
-          <Card key={doc.id} className="group hover:border-primary/50 transition-colors cursor-pointer">
-            <CardContent className="p-5 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="h-10 w-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm line-clamp-2" title={doc.title}>{doc.title}</h4>
-                <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                  <span className="bg-muted px-1.5 py-0.5 rounded">{doc.type}</span>
-                  <span className="font-mono">{doc.size}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      {isNearLimit && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-400 p-3 rounded-lg flex items-start gap-3 text-sm font-medium animate-in slide-in-from-top-2">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <p>
+            <strong className="block mb-1">تنبيه المساحة المتاحة!</strong>
+            إجمالي حجم الملفات المرفوعة اقترب من الحد الأقصى المؤقت (50MB). 
+            الملفات تُحفظ حالياً محلياً في المتصفح بصيغة Base64 مما يستهلك مساحة تخزين أكبر من الطبيعي.
+            سيتم استبدال هذه الآلية لاحقاً لرفع الملفات بشكل مباشر وسريع على الخادم السحابي (Backend).
+          </p>
+        </div>
+      )}
+
+      <FileUploadZone onUpload={uploadFile} isUploading={isUploading} error={error} />
+      
+      <div className="pt-2">
+        <h4 className="text-md font-bold mb-4 flex items-center gap-2">
+          قائمة المستندات المرفوعة 
+          <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs">{files.length}</span>
+        </h4>
+        <FileList files={files} onRemove={removeFile} getIcon={getFileIcon} />
       </div>
     </div>
   );

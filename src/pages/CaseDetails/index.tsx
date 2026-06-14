@@ -57,7 +57,7 @@ export default function CaseDetails() {
         {state.activeTab === 'degrees' && <CaseDegrees caseData={data.caseData} litigationDegrees={data.litigationDegrees} />}
         {state.activeTab === 'sessions' && <CaseSessions sessions={data.sessions} />}
         {state.activeTab === 'tasks' && <CaseTasks tasks={data.tasks} />}
-        {state.activeTab === 'docs' && <CaseDocuments documents={data.documents} />}
+        {state.activeTab === 'docs' && <CaseDocuments caseId={data.caseData.id} />}
         {state.activeTab === 'finance' && <CaseFinance financials={data.financials} />}
       </div>
 
