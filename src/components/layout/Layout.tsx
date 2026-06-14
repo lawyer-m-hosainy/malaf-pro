@@ -7,10 +7,21 @@ import { Button } from '@/components/ui/button';
 import { HeaderUserMenu } from '@/components/layout/HeaderUserMenu';
 import { HeaderNotifications } from '@/components/layout/HeaderNotifications';
 import PageLoader from '@/components/PageLoader';
+import { useTheme } from 'next-themes';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 export default function Layout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const { settings } = useSettingsStore();
+  const { setTheme } = useTheme();
+
+  useEffect(() => {
+    if (settings.theme) {
+      setTheme(settings.theme);
+    }
+  }, [settings.theme, setTheme]);
 
   // إغلاق القائمة الجانبية عند تغيير المسار في الجوال
   useEffect(() => {

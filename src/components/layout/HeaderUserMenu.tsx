@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from "@/store/useAuthStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { UserRole } from "@/types";
 
 export function HeaderUserMenu() {
   const { user, login } = useAuthStore();
+  const { settings } = useSettingsStore();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -29,7 +31,13 @@ export function HeaderUserMenu() {
   };
 
   const currentRoleName = user?.role === 'admin' ? 'مدير المكتب' : user?.role === 'lawyer' ? 'محامي/مندوب' : 'مستخدم';
-  const currentTitle = user?.name || 'زائر (اضغط للتسجيل)';
+  
+  // استخدام البيانات من useSettingsStore إذا كان المدير، وإلا استخدم اسم الزائر
+  const currentTitle = user?.role === 'admin' && settings.ownerName 
+    ? settings.ownerName 
+    : user?.name || 'زائر (اضغط للتسجيل)';
+
+  const officeName = settings.officeName || 'مكتب المحامي';
 
   return (
     <div className="relative" ref={ref}>
@@ -38,8 +46,8 @@ export function HeaderUserMenu() {
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="text-sm hidden sm:block text-right">
-          مرحباً، <span className="font-semibold">{currentTitle}</span>
-          <span className="block text-[10px] text-muted-foreground">{currentRoleName}</span>
+          <span className="block font-semibold">{currentTitle}</span>
+          <span className="block text-[10px] text-muted-foreground">{officeName} - {currentRoleName}</span>
         </div>
         <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold border border-primary/20 shrink-0">
           {currentTitle.charAt(0)}
@@ -54,10 +62,10 @@ export function HeaderUserMenu() {
           </div>
           <div 
              className="px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors"
-             onClick={() => handleSwitchUser('admin', 'أ. محمد الحسيني')}
+             onClick={() => handleSwitchUser('admin', settings.ownerName || 'أ. محمد الحسيني')}
           >
             <div className="flex flex-col">
-              <span className="font-medium text-sm">أ. محمد الحسيني</span>
+              <span className="font-medium text-sm">{settings.ownerName || 'أ. محمد الحسيني'}</span>
               <span className="text-[10px] text-muted-foreground">مدير المكتب (يرى جميع الملفات والمهام)</span>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'sonner';
 import LandingPage from '@/pages/LandingPage';
 import Dashboard from '@/pages/Dashboard';
@@ -24,12 +25,15 @@ import ClientPortal from '@/pages/ClientPortal';
 import Settings from '@/pages/Settings';
 import PrivateRoute from '@/components/PrivateRoute';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import PWAPrompt from '@/components/PWAPrompt';
 
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-      <Routes>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <BrowserRouter>
+        <PWAPrompt />
+        <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -62,6 +66,7 @@ function App() {
       </Routes>
       <Toaster position="top-center" richColors />
       </BrowserRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
