@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import path from 'path'
 import rateLimit from 'express-rate-limit'
 import { env } from './config/env'
 import authRouter from './routes/auth'
@@ -11,7 +12,9 @@ import consultationsRouter from './routes/consultations'
 import financeRouter from './routes/finance'
 import dashboardRouter from './routes/dashboard'
 import aiRouter from './routes/ai'
+import documentsRouter from './routes/documents'
 import { errorHandler } from './middleware/errorHandler'
+
 const app = express()
 
 // Security headers
@@ -45,6 +48,9 @@ app.use('/api/auth/login', authLimiter)
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
+// خدمة الملفات الثابتة (المستندات المرفوعة)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+
 // Health check
 app.get('/health', (_, res) => {
   res.json({
@@ -55,7 +61,9 @@ app.get('/health', (_, res) => {
   })
 })
 
-// Routes هتتضاف هنا في Prompts الجاية
+// ══════════════════════════════════════
+// API Routes
+// ══════════════════════════════════════
 app.use('/api/auth', authRouter)
 app.use('/api/clients', clientsRouter)
 app.use('/api/cases', casesRouter)
@@ -63,15 +71,15 @@ app.use('/api/sessions', sessionsRouter)
 app.use('/api/consultations', consultationsRouter)
 app.use('/api/finance', financeRouter)
 app.use('/api/dashboard', dashboardRouter)
+app.use('/api/documents', documentsRouter)
 app.use('/api/ai', aiRouter)
-// app.use('/api/clients', clientsRouter)
-// ...
 
 // 404 handler
 app.use('*', (_, res) => {
   res.status(404).json({ error: 'المسار غير موجود' })
 })
 
+// Global error handler
 app.use(errorHandler)
 
 export default app
