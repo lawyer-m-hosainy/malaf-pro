@@ -6,6 +6,9 @@ import { env } from './config/env'
 import authRouter from './routes/auth'
 import clientsRouter from './routes/clients'
 import casesRouter from './routes/cases'
+import sessionsRouter from './routes/sessions'
+import consultationsRouter from './routes/consultations'
+import financeRouter from './routes/finance'
 import { errorHandler } from './middleware/errorHandler'
 const app = express()
 
@@ -54,6 +57,9 @@ app.get('/health', (_, res) => {
 app.use('/api/auth', authRouter)
 app.use('/api/clients', clientsRouter)
 app.use('/api/cases', casesRouter)
+app.use('/api/sessions', sessionsRouter)
+app.use('/api/consultations', consultationsRouter)
+app.use('/api/finance', financeRouter)
 // app.use('/api/clients', clientsRouter)
 // ...
 
