@@ -1,0 +1,6 @@
+{
+  "name": "ملف برو",
+  "description": "منصة SaaS متكاملة لادارة مكاتب المحامين في مصر تدعم التوسع والامان، مع مراعاة خصوصية بيانات العملاء الحساسة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
