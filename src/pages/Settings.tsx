@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTheme } from 'next-themes';
 import * as Tabs from '@radix-ui/react-tabs';
-import { Building2, Palette, BellRing, Printer, AlertTriangle, Save, Check } from 'lucide-react';
+import { Building2, Palette, BellRing, Printer, AlertTriangle, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const officeSchema = z.object({
   officeName: z.string().min(2, 'اسم المكتب مطلوب'),
@@ -33,44 +37,78 @@ export default function Settings() {
   const { settings, updateSettings, resetSettings } = useSettingsStore();
   const { setTheme } = useTheme();
   const navigate = useNavigate();
-  const [successMsg, setSuccessMsg] = useState('');
+  const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdminOrOwner = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
-  const { register, handleSubmit, formState: { errors } } = useForm<OfficeFormValues>({
+  // جلب بيانات المكتب الحالية من DB عند فتح الصفحة
+  const { data: orgData } = useQuery({
+    queryKey: ['organization'],
+    queryFn: async () => {
+      const res = await api.get('/auth/me');
+      return res.data.organization;
+    },
+  });
+
+  const { mutate: saveOrg, isPending: isSaving } = useMutation({
+    mutationFn: async (data: OfficeFormValues) => {
+      await api.put('/auth/organization', {
+        name: data.officeName,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        licenseNo: data.licenseNumber,
+      });
+    },
+    onSuccess: (_, data) => {
+      updateSettings(data);
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      toast.success('تم حفظ بيانات المكتب بنجاح');
+    },
+    onError: () => toast.error('حدث خطأ أثناء الحفظ'),
+  });
+
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<OfficeFormValues>({
     resolver: zodResolver(officeSchema),
     defaultValues: {
-      officeName: settings.officeName,
+      officeName: orgData?.name || settings.officeName,
       ownerName: settings.ownerName,
-      phone: settings.phone,
-      email: settings.email,
-      address: settings.address,
-      licenseNumber: settings.licenseNumber,
+      phone: orgData?.phone || settings.phone,
+      email: orgData?.email || settings.email,
+      address: orgData?.address || settings.address,
+      licenseNumber: orgData?.licenseNo || settings.licenseNumber,
     }
   });
 
-  const showSuccess = () => {
-    setSuccessMsg('تم حفظ البيانات بنجاح ✓');
-    setTimeout(() => setSuccessMsg(''), 3000);
-  };
+  useEffect(() => {
+    if (orgData) {
+      reset({
+        officeName: orgData.name || settings.officeName,
+        ownerName: settings.ownerName,
+        phone: orgData.phone || '',
+        email: orgData.email || '',
+        address: orgData.address || '',
+        licenseNumber: orgData.licenseNo || '',
+      });
+    }
+  }, [orgData, reset, settings.officeName, settings.ownerName]);
 
   const onSubmitGeneral = (data: OfficeFormValues) => {
-    updateSettings(data);
-    showSuccess();
+    saveOrg(data);
   };
 
   const handleThemeChange = (value: 'light' | 'dark' | 'system') => {
     setTheme(value);
     updateSettings({ theme: value });
-    showSuccess();
   };
 
   const handleToggle = (key: keyof typeof settings) => {
     const currentValue = settings[key];
     updateSettings({ [key]: !currentValue });
-    showSuccess();
   };
 
   const handleWipeData = () => {
-    if (window.confirm('تحذير خطير: هل أنت متأكد من مسح جميع بيانات المنصة؟ سيتم فقدان كل القضايا والموكلين والحسابات للأبد!')) {
+    if (window.confirm('تحذير خطير: هل أنت متأكد من مسح جميع بيانات المنصة؟ سيتم فقدان كل القضايا والموكلين والحسابات [...]')) {
       if (window.confirm('تأكيد نهائي: هذه العملية لا يمكن التراجع عنها. هل تريد المسح حقاً؟')) {
         localStorage.clear();
         navigate('/login');
@@ -82,8 +120,7 @@ export default function Settings() {
     if (window.confirm('هل أنت متأكد من إعادة تعيين جميع الإعدادات إلى الوضع الافتراضي؟')) {
       resetSettings();
       setTheme('system');
-      setSuccessMsg('تم إعادة تعيين الإعدادات بنجاح ✓');
-      setTimeout(() => setSuccessMsg(''), 3000);
+      toast.success('تم إعادة تعيين الإعدادات بنجاح');
     }
   };
 
@@ -99,7 +136,7 @@ export default function Settings() {
         aria-checked={checked} 
         onClick={() => onChange()}
         className={cn(
-          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visi[...]",
           checked ? "bg-primary" : "bg-input"
         )}
       >
@@ -118,42 +155,37 @@ export default function Settings() {
           <h2 className="text-3xl font-bold tracking-tight">إعدادات المنصة</h2>
           <p className="text-muted-foreground mt-1">إدارة بيانات المكتب، المظهر، الإشعارات، والطباعة</p>
         </div>
-        {successMsg && (
-          <div className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 px-4 py-2 rounded-md font-medium text-sm flex items-center gap-2 animate-in fade-in zoom-in-95">
-            <Check className="h-4 w-4" /> {successMsg}
-          </div>
-        )}
       </div>
 
       <Tabs.Root defaultValue="general" className="flex flex-col md:flex-row gap-6">
         <Tabs.List className="flex md:flex-col gap-2 w-full md:w-64 shrink-0 overflow-x-auto pb-2 md:pb-0 bg-transparent border-b md:border-b-0">
           <Tabs.Trigger 
             value="general" 
-            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-bold transition-all whitespace-nowrap"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[sta[...]"
           >
             <Building2 className="h-4 w-4" /> بيانات المكتب
           </Tabs.Trigger>
           <Tabs.Trigger 
             value="appearance" 
-            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-bold transition-all whitespace-nowrap"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[sta[...]"
           >
             <Palette className="h-4 w-4" /> المظهر والعرض
           </Tabs.Trigger>
           <Tabs.Trigger 
             value="notifications" 
-            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-bold transition-all whitespace-nowrap"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[sta[...]"
           >
             <BellRing className="h-4 w-4" /> الإشعارات
           </Tabs.Trigger>
           <Tabs.Trigger 
             value="printing" 
-            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:font-bold transition-all whitespace-nowrap"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[sta[...]"
           >
             <Printer className="h-4 w-4" /> الطباعة
           </Tabs.Trigger>
           <Tabs.Trigger 
             value="danger" 
-            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive data-[state=active]:font-bold transition-all whitespace-nowrap"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-md font-medium text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive data-[state=active]:bg-destructive/1[...]"
           >
             <AlertTriangle className="h-4 w-4" /> منطقة الخطر
           </Tabs.Trigger>
@@ -194,7 +226,7 @@ export default function Settings() {
                       <label className="text-sm font-medium">العنوان الموحد للمكتب</label>
                       <textarea 
                         {...register('address')} 
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none f[...]"
                         placeholder="العنوان التفصيلي للمكتب..."
                       />
                     </div>
@@ -204,7 +236,9 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="pt-4 border-t flex justify-end">
-                    <Button type="submit" className="gap-2"><Save className="h-4 w-4" /> حفظ التعديلات</Button>
+                    <Button type="submit" className="gap-2" disabled={isSaving}>
+                      <Save className="h-4 w-4" /> {isSaving ? 'جاري الحفظ...' : 'حفظ البيانات'}
+                    </Button>
                   </div>
                 </form>
               </CardContent>
@@ -244,7 +278,7 @@ export default function Settings() {
                       <input 
                         type="radio" 
                         checked={settings.dateFormat === 'DD/MM/YYYY'} 
-                        onChange={() => { updateSettings({ dateFormat: 'DD/MM/YYYY' }); showSuccess(); }}
+                        onChange={() => { updateSettings({ dateFormat: 'DD/MM/YYYY' }); }}
                         className="accent-primary"
                       />
                       <span className="text-sm">يوم/شهر/سنة (31/12/2026)</span>
@@ -253,7 +287,7 @@ export default function Settings() {
                       <input 
                         type="radio" 
                         checked={settings.dateFormat === 'YYYY-MM-DD'} 
-                        onChange={() => { updateSettings({ dateFormat: 'YYYY-MM-DD' }); showSuccess(); }}
+                        onChange={() => { updateSettings({ dateFormat: 'YYYY-MM-DD' }); }}
                         className="accent-primary"
                       />
                       <span className="text-sm">سنة-شهر-يوم (2026-12-31)</span>
@@ -268,7 +302,7 @@ export default function Settings() {
                       <input 
                         type="radio" 
                         checked={settings.currency === 'EGP'} 
-                        onChange={() => { updateSettings({ currency: 'EGP' }); showSuccess(); }}
+                        onChange={() => { updateSettings({ currency: 'EGP' }); }}
                         className="accent-primary"
                       />
                       <span className="text-sm">جنيه مصري (EGP)</span>
@@ -277,7 +311,7 @@ export default function Settings() {
                       <input 
                         type="radio" 
                         checked={settings.currency === 'USD'} 
-                        onChange={() => { updateSettings({ currency: 'USD' }); showSuccess(); }}
+                        onChange={() => { updateSettings({ currency: 'USD' }); }}
                         className="accent-primary"
                       />
                       <span className="text-sm">دولار أمريكي (USD)</span>
