@@ -22,6 +22,9 @@ router.put('/change-password', requireAuth, AuthController.changePassword)
 // PUT /api/auth/profile
 router.put('/profile', requireAuth, AuthController.updateProfile)
 
+// PUT /api/auth/organization — تحديث بيانات المكتب
+router.put('/organization', requireAuth, AuthController.updateOrganization)
+
 // POST /api/auth/team  ← إضافة عضو جديد للفريق (owner/admin فقط)
 router.post('/team', requireAuth, AuthController.addTeamMember)
 
