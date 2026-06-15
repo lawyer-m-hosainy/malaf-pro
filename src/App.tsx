@@ -1,35 +1,36 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'sonner';
-import LandingPage from '@/pages/LandingPage';
-import Dashboard from '@/pages/Dashboard';
-import Login from '@/pages/Login';
-import PrivacyPolicy from '@/pages/PrivacyPolicy';
-import TermsOfService from '@/pages/TermsOfService';
-import Layout from '@/components/layout/Layout';
-import Clients from '@/pages/Clients';
-import Cases from '@/pages/Cases';
-import CaseDetails from '@/pages/CaseDetails';
-import Execution from '@/pages/Execution';
-import Sessions from '@/pages/Sessions';
-import Administrative from '@/pages/Administrative';
-import Consultations from '@/pages/Consultations';
-import Finance from '@/pages/Finance';
-import Archive from '@/pages/Archive';
-import Team from '@/pages/Team';
-import AIDrafting from '@/pages/AIDrafting';
+import React, { lazy } from 'react';
+import { AsyncBoundary } from '@/components/AsyncBoundary';
 
-import Reports from '@/pages/Reports';
-import Library from '@/pages/Library';
-import ClientPortal from '@/pages/ClientPortal';
-import Settings from '@/pages/Settings';
+const LandingPage = lazy(() => import('@/pages/LandingPage'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const Login = lazy(() => import('@/pages/Login'));
+const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('@/pages/TermsOfService'));
+const Layout = lazy(() => import('@/components/layout/Layout'));
+const Clients = lazy(() => import('@/pages/Clients'));
+const Cases = lazy(() => import('@/pages/Cases'));
+const CaseDetails = lazy(() => import('@/pages/CaseDetails'));
+const Execution = lazy(() => import('@/pages/Execution'));
+const Sessions = lazy(() => import('@/pages/Sessions'));
+const Administrative = lazy(() => import('@/pages/Administrative'));
+const Consultations = lazy(() => import('@/pages/Consultations'));
+const Finance = lazy(() => import('@/pages/Finance'));
+const Archive = lazy(() => import('@/pages/Archive'));
+const Team = lazy(() => import('@/pages/Team'));
+const AIDrafting = lazy(() => import('@/pages/AIDrafting'));
+const Reports = lazy(() => import('@/pages/Reports'));
+const Library = lazy(() => import('@/pages/Library'));
+const ClientPortal = lazy(() => import('@/pages/ClientPortal'));
+const Settings = lazy(() => import('@/pages/Settings'));
 import PrivateRoute from '@/components/PrivateRoute';
-import ErrorBoundary from '@/components/ErrorBoundary';
 import PWAPrompt from '@/components/PWAPrompt';
 
 function App() {
   return (
-    <ErrorBoundary>
+    <AsyncBoundary>
       {/* @ts-ignore - next-themes ThemeProvider type mismatch with React 18+ */}
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <BrowserRouter>
@@ -68,7 +69,7 @@ function App() {
       <Toaster position="top-center" richColors />
       </BrowserRouter>
       </ThemeProvider>
-    </ErrorBoundary>
+    </AsyncBoundary>
   );
 }
 

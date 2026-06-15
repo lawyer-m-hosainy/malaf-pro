@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { InvoiceStatus } from '@prisma/client'
+import { getPaginationParams, paginatedResponse } from '../lib/pagination'
 
 // ── Schemas ──
 const invoiceSchema = z.object({
@@ -41,22 +42,17 @@ async function generateInvoiceNumber(orgId: string): Promise<string> {
 // ── GET /api/finance/invoices ──
 export async function getInvoices(req: AuthRequest, res: Response) {
   try {
-    const { status, clientId, page = '1', limit = '20' } = req.query
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const take = parseInt(limit as string)
+    const { status, clientId, page, limit } = req.query
+    const { skip, take, page: p, limit: l } =
+      getPaginationParams({ page, limit })
 
-    const where: any = {
-      organizationId: req.user!.organizationId,
-    }
-
-    if (status) where.status = status as InvoiceStatus
+    const where: any = { organizationId: req.user!.organizationId }
+    if (status) where.status = status
     if (clientId) where.clientId = clientId
 
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         orderBy: { createdAt: 'desc' },
         include: {
           items: true,
@@ -67,12 +63,7 @@ export async function getInvoices(req: AuthRequest, res: Response) {
       prisma.invoice.count({ where }),
     ])
 
-    return res.json({
-      data: invoices,
-      total,
-      page: parseInt(page as string),
-      totalPages: Math.ceil(total / take),
-    })
+    return res.json(paginatedResponse(invoices, total, p, l))
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب الفواتير' })
@@ -206,9 +197,9 @@ export async function deleteInvoice(req: AuthRequest, res: Response) {
 // ── GET /api/finance/expenses ──
 export async function getExpenses(req: AuthRequest, res: Response) {
   try {
-    const { category, from, to, page = '1', limit = '20' } = req.query
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const take = parseInt(limit as string)
+    const { category, from, to, page, limit } = req.query
+    const { skip, take, page: p, limit: l } =
+      getPaginationParams({ page, limit })
 
     const where: any = {
       organizationId: req.user!.organizationId,
@@ -224,20 +215,13 @@ export async function getExpenses(req: AuthRequest, res: Response) {
 
     const [expenses, total] = await Promise.all([
       prisma.expense.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         orderBy: { date: 'desc' },
       }),
       prisma.expense.count({ where }),
     ])
 
-    return res.json({
-      data: expenses,
-      total,
-      page: parseInt(page as string),
-      totalPages: Math.ceil(total / take),
-    })
+    return res.json(paginatedResponse(expenses, total, p, l))
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب المصروفات' })

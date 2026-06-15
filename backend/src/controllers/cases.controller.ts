@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { CaseStatus } from '@prisma/client'
+import { getPaginationParams, paginatedResponse } from '../lib/pagination'
 
 // ── Validation ──
 const caseSchema = z.object({
@@ -28,23 +29,14 @@ const updateStatusSchema = z.object({
 // ── GET /api/cases ──
 export async function getAll(req: AuthRequest, res: Response) {
   try {
-    const {
-      search,
-      status,
-      jurisdiction,
-      lawyerId,
-      page = '1',
-      limit = '20',
-    } = req.query
-
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const take = parseInt(limit as string)
+    const { search, status, jurisdiction, page, limit } = req.query
+    const { skip, take, page: p, limit: l } =
+      getPaginationParams({ page, limit })
 
     const where: any = {
       organizationId: req.user!.organizationId,
     }
 
-    // المحامي يشوف قضاياه بس
     if (req.user!.role === 'LAWYER') {
       where.assignedLawyerId = req.user!.id
     }
@@ -60,61 +52,28 @@ export async function getAll(req: AuthRequest, res: Response) {
       ]
     }
 
-    if (status && status !== 'ALL') {
-      where.status = status as CaseStatus
-    }
-
-    if (jurisdiction && jurisdiction !== 'ALL') {
+    if (status && status !== 'ALL') where.status = status
+    if (jurisdiction && jurisdiction !== 'ALL')
       where.jurisdiction = jurisdiction
-    }
-
-    if (lawyerId) {
-      where.assignedLawyerId = lawyerId
-    }
 
     const [cases, total] = await Promise.all([
       prisma.case.findMany({
-        where,
-        skip,
-        take,
-        orderBy: [
-          { nextSession: 'asc' },
-          { createdAt: 'desc' },
-        ],
+        where, skip, take,
+        orderBy: [{ nextSession: 'asc' }, { createdAt: 'desc' }],
         select: {
-          id: true,
-          internalId: true,
-          caseNumber: true,
-          year: true,
-          title: true,
-          jurisdiction: true,
-          branch: true,
-          degree: true,
-          clientRole: true,
-          opponent: true,
-          status: true,
-          nextSession: true,
-          createdAt: true,
-          client: {
-            select: { id: true, name: true, phone: true },
-          },
-          assignedLawyer: {
-            select: { id: true, name: true },
-          },
-          _count: {
-            select: { sessions: true, documents: true },
-          },
+          id: true, internalId: true, caseNumber: true, year: true,
+          title: true, jurisdiction: true, branch: true, degree: true,
+          clientRole: true, opponent: true, status: true,
+          nextSession: true, createdAt: true,
+          client: { select: { id: true, name: true, phone: true } },
+          assignedLawyer: { select: { id: true, name: true } },
+          _count: { select: { sessions: true, documents: true } },
         },
       }),
       prisma.case.count({ where }),
     ])
 
-    return res.json({
-      data: cases,
-      total,
-      page: parseInt(page as string),
-      totalPages: Math.ceil(total / take),
-    })
+    return res.json(paginatedResponse(cases, total, p, l))
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب القضايا' })

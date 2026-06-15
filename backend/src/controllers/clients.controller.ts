@@ -2,6 +2,7 @@ import { Response } from 'express'
 import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
+import { getPaginationParams, paginatedResponse } from '../lib/pagination'
 
 // ── Validation ──
 const clientSchema = z.object({
@@ -23,16 +24,10 @@ const clientSchema = z.object({
 // ── GET /api/clients ──
 export async function getAll(req: AuthRequest, res: Response) {
   try {
-    const {
-      search,
-      page = '1',
-      limit = '20',
-    } = req.query
+    const { search, page, limit } = req.query
+    const { skip, take, page: p, limit: l } =
+      getPaginationParams({ page, limit })
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const take = parseInt(limit as string)
-
-    // بناء شرط البحث
     const where: any = {
       organizationId: req.user!.organizationId,
       isActive: true,
@@ -50,17 +45,11 @@ export async function getAll(req: AuthRequest, res: Response) {
 
     const [clients, total] = await Promise.all([
       prisma.client.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true,
-          name: true,
-          nationalId: true,
-          phone: true,
-          email: true,
-          address: true,
+          id: true, name: true, nationalId: true,
+          phone: true, email: true, address: true,
           createdAt: true,
           _count: { select: { cases: true } },
         },
@@ -68,12 +57,7 @@ export async function getAll(req: AuthRequest, res: Response) {
       prisma.client.count({ where }),
     ])
 
-    return res.json({
-      data: clients,
-      total,
-      page: parseInt(page as string),
-      totalPages: Math.ceil(total / take),
-    })
+    return res.json(paginatedResponse(clients, total, p, l))
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب الموكلين' })

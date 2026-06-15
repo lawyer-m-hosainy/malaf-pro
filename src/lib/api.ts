@@ -1,32 +1,52 @@
-import axios from 'axios';
-import { useAuthStore } from '@/store/useAuthStore';
+import axios from 'axios'
 
-const isDevelopment = (import.meta as any).env.MODE === 'development';
-const API_URL = isDevelopment ? 'http://localhost:3001/api' : '/api';
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+})
 
-export const api = axios.create({
-  baseURL: API_URL,
-  withCredentials: true,
-});
-
-// إرفاق التوكن في كل طلب
+// أضف الـ token لكل request
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+  const token = localStorage.getItem('accessToken')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
-// معالجة الأخطاء والتوكن المنتهي
+// لو جاء 401 جدّد الـ token تلقائياً
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // التوكن منتهي أو غير صالح، قم بتسجيل الخروج
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+  async (error) => {
+    const original = error.config
+
+    if (error.response?.status === 401 && !original._retry) {
+      original._retry = true
+
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (!refreshToken) {
+        localStorage.clear()
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      try {
+        const { data } = await axios.post('/api/auth/refresh', {
+          refreshToken,
+        })
+
+        localStorage.setItem('accessToken', data.accessToken)
+        localStorage.setItem('refreshToken', data.refreshToken)
+        original.headers.Authorization = `Bearer ${data.accessToken}`
+
+        return api(original)
+      } catch {
+        localStorage.clear()
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
     }
-    return Promise.reject(error);
+
+    return Promise.reject(error)
   }
-);
+)
+
+export { api }
+export default api

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { SessionType } from '@prisma/client'
+import { getPaginationParams, paginatedResponse } from '../lib/pagination'
 
 // ── Validation ──
 const sessionSchema = z.object({
@@ -19,27 +20,16 @@ const sessionSchema = z.object({
 // ── GET /api/sessions ──
 export async function getAll(req: AuthRequest, res: Response) {
   try {
-    const {
-      caseId,
-      from,
-      to,
-      page = '1',
-      limit = '20',
-    } = req.query
-
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
-    const take = parseInt(limit as string)
+    const { caseId, from, to, page, limit } = req.query
+    const { skip, take, page: p, limit: l } =
+      getPaginationParams({ page, limit })
 
     const where: any = {
       organizationId: req.user!.organizationId,
     }
 
-    if (req.user!.role === 'LAWYER') {
-      where.lawyerId = req.user!.id
-    }
-
+    if (req.user!.role === 'LAWYER') where.lawyerId = req.user!.id
     if (caseId) where.caseId = caseId
-
     if (from || to) {
       where.date = {}
       if (from) where.date.gte = new Date(from as string)
@@ -48,18 +38,13 @@ export async function getAll(req: AuthRequest, res: Response) {
 
     const [sessions, total] = await Promise.all([
       prisma.session.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         orderBy: { date: 'desc' },
         include: {
           case: {
             select: {
-              id: true,
-              title: true,
-              caseNumber: true,
-              internalId: true,
-              jurisdiction: true,
+              id: true, title: true, caseNumber: true,
+              internalId: true, jurisdiction: true,
               client: { select: { id: true, name: true } },
             },
           },
@@ -69,12 +54,7 @@ export async function getAll(req: AuthRequest, res: Response) {
       prisma.session.count({ where }),
     ])
 
-    return res.json({
-      data: sessions,
-      total,
-      page: parseInt(page as string),
-      totalPages: Math.ceil(total / take),
-    })
+    return res.json(paginatedResponse(sessions, total, p, l))
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب الجلسات' })

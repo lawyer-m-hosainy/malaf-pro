@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, User, Edit, Printer, Building2, Globe2, X, Save, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { clientSchema, ClientFormData } from '@/lib/validationSchemas';
 import { Client } from '@/types';
+import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
+import { Pagination } from '@/components/Pagination';
 
 export default function Clients() {
   const { user } = useAuthStore();
@@ -21,18 +23,30 @@ export default function Clients() {
   const [filterType, setFilterType] = useState('');
   const [filterNationality, setFilterNationality] = useState('');
 
-  const { data: clients = [], isLoading } = useQuery<Client[]>({
-    queryKey: ['clients', { search: searchTerm, type: filterType, nationality: filterNationality }],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (filterType) params.append('type', filterType);
-      if (filterNationality) params.append('nationality', filterNationality);
-      
-      const res = await api.get(`/clients?${params.toString()}`);
-      return res.data;
-    }
+  const {
+    data: response,
+    isLoading,
+    page,
+    setPage,
+    goToNext,
+    goToPrev,
+    pagination
+  } = usePaginatedQuery<Client>({
+    queryKey: ['clients'],
+    endpoint: '/clients',
+    params: {
+      search: searchTerm || undefined,
+      type: filterType || undefined,
+      nationality: filterNationality || undefined
+    },
+    limit: 20
   });
+
+  const clients = response?.data || [];
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterType, filterNationality, setPage]);
 
   const addClientMutation = useMutation({
     mutationFn: async (data: ClientFormData) => {
@@ -224,6 +238,16 @@ export default function Clients() {
                </tbody>
              </table>
            </div>
+            {pagination && (
+              <div className="p-4 border-t">
+                <Pagination
+                  pagination={pagination}
+                  onNext={goToNext}
+                  onPrev={goToPrev}
+                  onPage={setPage}
+                />
+              </div>
+            )}
         </CardContent>
       </Card>
 

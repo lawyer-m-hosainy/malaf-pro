@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
-import { AuthRequest, generateTokens } from '../middleware/auth'
+import { AuthRequest } from '../middleware/auth'
 import { env } from '../config/env'
 
 // ── Validation Schemas ──
@@ -51,19 +51,22 @@ export async function login(req: AuthRequest, res: Response) {
         .json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' })
     }
 
-    const { accessToken, refreshToken } = generateTokens({
+    const tokens = generateTokens({
       id: user.id,
       email: user.email,
       role: user.role,
       organizationId: user.organizationId,
     })
 
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30)
+
     // حفظ الـ refresh token في DB
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: tokens.refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        expiresAt,
       },
     })
 
@@ -74,8 +77,8 @@ export async function login(req: AuthRequest, res: Response) {
     })
 
     return res.json({
-      accessToken,
-      refreshToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -100,60 +103,98 @@ export async function login(req: AuthRequest, res: Response) {
 
 // ── تجديد الـ Access Token ──
 export async function refreshToken(req: AuthRequest, res: Response) {
-  const { refreshToken: token } = req.body
-  if (!token) {
-    return res.status(400).json({ error: 'Refresh token مطلوب' })
-  }
-
   try {
-    const payload = jwt.verify(
-      token,
-      env.JWT_SECRET + '_refresh'
-    ) as { id: string }
+    const { refreshToken: token } = req.body
 
-    // تحقق إن التوكن موجود في DB ولم يُستخدم
+    if (!token) {
+      return res.status(400).json({ error: 'Refresh token مطلوب' })
+    }
+
+    // تحقق من الـ token في DB
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token },
       include: { user: true },
     })
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      return res.status(401).json({ error: 'انتهت صلاحية الجلسة' })
+    if (!storedToken) {
+      return res.status(401).json({ error: 'Refresh token غير صالح' })
     }
 
-    // امسح القديم وعمل واحد جديد (Rotation)
+    if (storedToken.expiresAt < new Date()) {
+      // امسح التوكن المنتهي
+      await prisma.refreshToken.delete({ where: { token } })
+      return res.status(401).json({
+        error: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى'
+      })
+    }
+
+    if (!storedToken.user.isActive) {
+      return res.status(401).json({ error: 'الحساب غير نشط' })
+    }
+
+    // امسح القديم واعمل جديد (Token Rotation)
     await prisma.refreshToken.delete({ where: { token } })
 
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
+    const newTokens = generateTokens({
       id: storedToken.user.id,
       email: storedToken.user.email,
       role: storedToken.user.role,
       organizationId: storedToken.user.organizationId,
     })
 
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30)
+
     await prisma.refreshToken.create({
       data: {
-        token: newRefreshToken,
+        token: newTokens.refreshToken,
         userId: storedToken.user.id,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        expiresAt,
       },
     })
 
-    return res.json({ accessToken, refreshToken: newRefreshToken })
-  } catch {
-    return res.status(401).json({ error: 'رمز التجديد غير صالح' })
+    return res.json({
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken,
+    })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ في تجديد الجلسة' })
   }
 }
 
 // ── تسجيل الخروج ──
 export async function logout(req: AuthRequest, res: Response) {
-  const { refreshToken: token } = req.body
-  if (token) {
-    await prisma.refreshToken
-      .delete({ where: { token } })
-      .catch(() => {})
+  try {
+    const { refreshToken: token } = req.body
+
+    if (token) {
+      await prisma.refreshToken.deleteMany({
+        where: { token }
+      }).catch(() => {})
+    }
+
+    return res.json({ message: 'تم تسجيل الخروج بنجاح' })
+  } catch (err) {
+    return res.status(500).json({ error: 'حدث خطأ' })
   }
-  return res.json({ message: 'تم تسجيل الخروج بنجاح' })
+}
+
+export function generateTokens(payload: {
+  id: string
+  email: string
+  role: string
+  organizationId: string
+}) {
+  const accessToken = jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: '15m',  // قصير للأمان
+  })
+  const refreshToken = jwt.sign(
+    { id: payload.id },
+    env.JWT_SECRET + '_refresh',
+    { expiresIn: '30d' }
+  )
+  return { accessToken, refreshToken }
 }
 
 // ── بيانات المستخدم الحالي ──

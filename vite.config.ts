@@ -106,6 +106,40 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // مكتبات أساسية
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+
+            // UI libraries
+            'vendor-ui': [
+              '@radix-ui/react-dialog',
+              '@radix-ui/react-dropdown-menu',
+              '@radix-ui/react-tabs',
+              'framer-motion',
+              'lucide-react',
+            ],
+
+            // Data & State
+            'vendor-data': [
+              'zustand',
+              '@tanstack/react-query',
+              'axios',
+              'zod',
+            ],
+
+            // Charts
+            'vendor-charts': ['recharts'],
+
+            // Forms
+            'vendor-forms': ['react-hook-form', '@hookform/resolvers'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 500,
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

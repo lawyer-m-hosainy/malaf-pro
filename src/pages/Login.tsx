@@ -23,9 +23,12 @@ export default function Login() {
 
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { user, token } = response.data;
+      const { user, accessToken, refreshToken } = response.data;
       
-      setAuth(user, token);
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      
+      setAuth(user, accessToken);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'حدث خطأ أثناء تسجيل الدخول. تأكد من بياناتك.');

@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, X, FolderKanban, Scale, AlertCircle, Printer, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { caseSchema, CaseFormData } from '@/lib/validationSchemas';
 import { Case } from '@/types';
+import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
+import { Pagination } from '@/components/Pagination';
 
 const COURT_STRUCTURE = {
   "القضاء العادي": {
@@ -49,17 +51,29 @@ export default function Cases() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [internalId, setInternalId] = useState('');
 
-  const { data: cases = [], isLoading } = useQuery<Case[]>({
-    queryKey: ['cases', { search: searchQuery, status: statusFilter }],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
-      if (statusFilter !== 'الجميع') params.append('status', statusFilter);
-      
-      const res = await api.get(`/cases?${params.toString()}`);
-      return res.data;
-    }
+  const { 
+    data: response, 
+    isLoading,
+    page,
+    setPage,
+    goToNext,
+    goToPrev,
+    pagination 
+  } = usePaginatedQuery<Case>({
+    queryKey: ['cases'],
+    endpoint: '/cases',
+    params: {
+      search: searchQuery || undefined,
+      status: statusFilter === 'الجميع' ? undefined : statusFilter
+    },
+    limit: 20
   });
+
+  const cases = response?.data || [];
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter, setPage]);
 
   const addCaseMutation = useMutation({
     mutationFn: async (data: CaseFormData & { internalId: string }) => {
@@ -284,6 +298,17 @@ export default function Cases() {
                </tbody>
              </table>
            </div>
+            
+            {pagination && (
+              <div className="p-4 border-t">
+                <Pagination
+                  pagination={pagination}
+                  onNext={goToNext}
+                  onPrev={goToPrev}
+                  onPage={setPage}
+                />
+              </div>
+            )}
         </CardContent>
       </Card>
 
