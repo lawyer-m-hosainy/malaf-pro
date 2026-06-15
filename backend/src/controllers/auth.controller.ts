@@ -278,6 +278,41 @@ export async function updateProfile(req: AuthRequest, res: Response) {
   return res.json({ message: 'تم تحديث الملف الشخصي', user: updated })
 }
 
+// ── تحديث بيانات المكتب ──
+export async function updateOrganization(req: AuthRequest, res: Response) {
+  try {
+    if (!['OWNER', 'ADMIN'].includes(req.user!.role)) {
+      return res.status(403).json({ error: 'غير مصرح' })
+    }
+
+    const { name, phone, email, address, licenseNo } = req.body
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'اسم المكتب مطلوب' })
+    }
+
+    const updated = await prisma.organization.update({
+      where: { id: req.user!.organizationId },
+      data: {
+        name: name.trim(),
+        phone: phone?.trim() || null,
+        email: email?.trim() || null,
+        address: address?.trim() || null,
+        licenseNo: licenseNo?.trim() || null,
+      },
+      select: {
+        id: true, name: true, phone: true,
+        email: true, address: true, licenseNo: true,
+      },
+    })
+
+    return res.json({ message: 'تم تحديث بيانات المكتب', organization: updated })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ' })
+  }
+}
+
 // ── إضافة عضو للفريق ──
 export async function addTeamMember(req: AuthRequest, res: Response) {
   try {
