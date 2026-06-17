@@ -72,6 +72,9 @@ model User {
   assignedTasks    Task[]         @relation("AssignedTasks")
   refreshTokens    RefreshToken[]
 
+  // علاقات جديدة
+  createdPortalAccess PortalAccess[]
+
   @@index([organizationId])
   @@index([email])
   @@map("users")
@@ -124,6 +127,9 @@ model Client {
   cases         Case[]
   consultations Consultation[]
   invoices      Invoice[]
+
+  // علاقات جديدة
+  portalAccess PortalAccess[]
 
   // رقم قومي فريد داخل نفس المكتب
   @@unique([nationalId, organizationId])
@@ -461,4 +467,25 @@ model LibraryItem {
 
   @@index([organizationId])
   @@map("library_items")
+}
+
+// ══════════════════════════════════════
+// 15. بوابة الموكلين (Portal access)
+// ══════════════════════════════════════
+model PortalAccess {
+  id           String    @id @default(cuid())
+  token        String    @unique
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  isActive     Boolean   @default(true)
+  expiresAt    DateTime?
+  lastViewedAt DateTime?
+  viewCount    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id])
+
+  @@index([token])
+  @@index([clientId])
+  @@map("portal_access")
 }
