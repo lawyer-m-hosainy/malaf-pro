@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { InvoiceStatus } from '@prisma/client'
 import { getPaginationParams, paginatedResponse } from '../lib/pagination'
+import { generateInvoicePDF, generateReportPDF } from '../services/pdfGenerator.service'
 
 // ── Schemas ──
 const invoiceSchema = z.object({
@@ -383,5 +384,99 @@ export async function getStats(req: AuthRequest, res: Response) {
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في جلب الإحصائيات' })
+  }
+}
+
+// ── GET /api/finance/invoices/:id/pdf ──
+export async function exportInvoicePDF(req: AuthRequest, res: Response) {
+  try {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId: req.user!.organizationId,
+      },
+      include: {
+        items: true,
+        client: true,
+        case: { select: { title: true, caseNumber: true } },
+        organization: true,
+      },
+    })
+
+    if (!invoice) {
+      return res.status(404).json({ error: 'الفاتورة غير موجودة' })
+    }
+
+    generateInvoicePDF({
+      invoiceNumber: invoice.invoiceNumber,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      status: invoice.status,
+      organization: invoice.organization,
+      client: invoice.client,
+      case: invoice.case || null,
+      items: invoice.items.map(i => ({
+        description: i.description,
+        amount: Number(i.amount),
+        quantity: i.quantity,
+      })),
+      totalAmount: Number(invoice.totalAmount),
+      notes: invoice.notes,
+    }, res)
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ في توليد الفاتورة' })
+  }
+}
+
+// ── GET /api/finance/reports/pdf ──
+export async function exportReportPDF(req: AuthRequest, res: Response) {
+  try {
+    const orgId = req.user!.organizationId
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+    const [org, invoices, expenses, casesCount, clientsCount, clients] =
+      await Promise.all([
+        prisma.organization.findUnique({ where: { id: orgId } }),
+        prisma.invoice.findMany({
+          where: { organizationId: orgId, status: 'PAID',
+                   paidDate: { gte: sixMonthsAgo } },
+          select: { totalAmount: true },
+        }),
+        prisma.expense.findMany({
+          where: { organizationId: orgId, date: { gte: sixMonthsAgo } },
+          select: { amount: true },
+        }),
+        prisma.case.count({ where: { organizationId: orgId } }),
+        prisma.client.count({ where: { organizationId: orgId, isActive: true } }),
+        prisma.client.findMany({
+          where: { organizationId: orgId, isActive: true },
+          include: { _count: { select: { cases: true } } },
+        }),
+      ])
+
+    const totalIncome = invoices.reduce((s, i) => s + Number(i.totalAmount), 0)
+    const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0)
+
+    const topClients = clients
+      .map(c => ({ name: c.name, cases: c._count.cases }))
+      .filter(c => c.cases > 0)
+      .sort((a, b) => b.cases - a.cases)
+      .slice(0, 5)
+
+    generateReportPDF({
+      organization: { name: org!.name },
+      period: 'آخر 6 أشهر',
+      totalIncome,
+      totalExpenses,
+      netProfit: totalIncome - totalExpenses,
+      casesCount,
+      clientsCount,
+      topClients,
+    }, res)
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ في توليد التقرير' })
   }
 }
