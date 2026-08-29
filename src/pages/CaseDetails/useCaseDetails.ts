@@ -57,10 +57,23 @@ export function useCaseDetails() {
     status: raw.status,
     statusLabel: CASE_STATUS_LABELS[raw.status] || raw.status,
     nextSession: raw.nextSession ? new Date(raw.nextSession).toLocaleDateString('ar-EG') : 'يحدد لاحقاً',
+    clientId: raw.clientId,
     clientName: raw.client?.name || 'غير محدد',
     clientPhone: raw.client?.phone || '',
     lawyerName: raw.assignedLawyer?.name || 'غير معين',
   } : null;
+
+  const litigationDegrees = (raw?.lineage || []).map((d: any) => ({
+    id: d.id,
+    degree: d.degree,
+    jurisdiction: d.jurisdiction,
+    branch: d.branch,
+    caseNumber: d.caseNumber,
+    year: d.year,
+    status: d.status,
+    statusLabel: CASE_STATUS_LABELS[d.status] || d.status,
+    isCurrent: d.id === raw?.id,
+  }));
 
   const sessions = (raw?.sessions || []).map((s: any) => ({
     id: s.id,
@@ -117,6 +130,7 @@ export function useCaseDetails() {
     },
     data: {
       caseData,
+      litigationDegrees,
       sessions,
       tasks,
       documents,

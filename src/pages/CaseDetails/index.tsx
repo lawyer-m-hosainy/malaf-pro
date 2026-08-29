@@ -76,7 +76,7 @@ export default function CaseDetails() {
       {/* Content Area */}
       <div className="min-h-[400px] print:hidden">
         {state.activeTab === 'timeline' && <CaseTimeline caseUpdates={data.caseUpdates} />}
-        {state.activeTab === 'degrees' && <CaseDegrees caseData={data.caseData} />}
+        {state.activeTab === 'degrees' && <CaseDegrees caseData={data.caseData} litigationDegrees={data.litigationDegrees} />}
         {state.activeTab === 'sessions' && <CaseSessions sessions={data.sessions} />}
         {state.activeTab === 'tasks' && <CaseTasks tasks={data.tasks} />}
         {state.activeTab === 'docs' && <CaseDocuments caseId={data.caseData.id} />}

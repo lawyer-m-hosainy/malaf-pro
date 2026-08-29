@@ -1,4 +1,6 @@
-export function PrintLayout({ caseData, sessions, tasks, documents, caseUpdates, invoices, printSections }: any) {
+import { cn } from '@/lib/utils';
+
+export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, documents, caseUpdates, invoices, printSections }: any) {
   const totalInvoiced = (invoices || []).reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
   const totalPaid = (invoices || []).filter((inv: any) => inv.status === 'PAID').reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
 
@@ -45,21 +47,25 @@ export function PrintLayout({ caseData, sessions, tasks, documents, caseUpdates,
         {printSections.degrees && (
           <div className="mb-8 page-break-inside-avoid">
             <h3 className="text-xl font-bold border-b-2 border-black pb-2 mb-4 bg-gray-100 p-2 text-black flex items-center gap-2">
-              <span className="h-6 w-1 bg-black rounded-full block"></span> بيانات درجة التقاضي
+              <span className="h-6 w-1 bg-black rounded-full block"></span> تسلسل درجات التقاضي
             </h3>
-            <div className="border-2 border-black p-3 flex justify-between bg-white text-black items-center">
-               <div className="w-1/3">
-                 <p className="font-bold text-lg">{caseData.degree}</p>
-                 <p className="text-gray-700 font-mono font-semibold">رقم: {caseData.currentCaseNumber} / {caseData.currentYear}</p>
-               </div>
-               <div className="text-right w-1/3 border-r border-gray-300 pr-4">
-                 <p className="font-semibold text-gray-800">الجهة:</p>
-                 <p className="font-bold text-md">{caseData.jurisdiction} — {caseData.circuit}</p>
-               </div>
-               <div className="text-right w-1/3 border-r border-gray-300 pr-4">
-                 <p className="font-semibold text-gray-800">الحالة:</p>
-                 <p className="font-bold text-md text-black">{caseData.statusLabel}</p>
-               </div>
+            <div className="space-y-3">
+              {(litigationDegrees || []).map((deg: any) => (
+                <div key={deg.id} className={cn("border p-3 flex justify-between bg-white text-black items-center", deg.isCurrent ? "border-2 border-black" : "border-gray-400 border-dashed")}>
+                   <div className="w-1/3">
+                     <p className="font-bold text-lg">{deg.degree}</p>
+                     <p className="text-gray-700 font-mono font-semibold">رقم: {deg.caseNumber} / {deg.year}</p>
+                   </div>
+                   <div className="text-right w-1/3 border-r border-gray-300 pr-4">
+                     <p className="font-semibold text-gray-800">الجهة:</p>
+                     <p className="font-bold text-md">{deg.jurisdiction} — {deg.branch}</p>
+                   </div>
+                   <div className="text-right w-1/3 border-r border-gray-300 pr-4">
+                     <p className="font-semibold text-gray-800">الحالة:</p>
+                     <p className="font-bold text-md text-black">{deg.statusLabel}</p>
+                   </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

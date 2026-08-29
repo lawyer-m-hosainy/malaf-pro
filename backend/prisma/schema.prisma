@@ -167,6 +167,12 @@ model Case {
   assignedLawyerId String?
   assignedLawyer   User?        @relation("AssignedLawyer", fields: [assignedLawyerId], references: [id])
 
+  // ربط درجات التقاضي: كل درجة (ابتدائي/استئناف/نقض) قضية مستقلة برقمها
+  // الخاص، لكن مرتبطة بالدرجة السابقة عشان يتجمع تاريخ النزاع كامل
+  parentCaseId String?
+  parentCase   Case?   @relation("CaseDegrees", fields: [parentCaseId], references: [id], onDelete: SetNull)
+  childCases   Case[]  @relation("CaseDegrees")
+
   // Relations
   sessions      Session[]
   documents     Document[]
@@ -179,6 +185,7 @@ model Case {
   @@index([clientId])
   @@index([status])
   @@index([nextSession])
+  @@index([parentCaseId])
   @@map("cases")
 }
 

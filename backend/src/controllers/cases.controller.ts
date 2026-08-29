@@ -21,7 +21,51 @@ const caseSchema = z.object({
   nextSession: z.string().optional(),
   description: z.string().optional(),
   status: z.nativeEnum(CaseStatus).optional(),
+  parentCaseId: z.string().optional(),
 })
+
+// ── يجمع تاريخ النزاع الكامل: كل درجات التقاضي المرتبطة ببعض ──
+// (ابتدائي → استئناف → نقض...) بغض النظر مين الحلقة اللي اتفتحت منها
+async function getCaseLineage(caseId: string, organizationId: string) {
+  let rootId = caseId
+  const seen = new Set<string>()
+  while (true) {
+    const current = await prisma.case.findFirst({
+      where: { id: rootId, organizationId },
+      select: { id: true, parentCaseId: true },
+    })
+    if (!current || !current.parentCaseId || seen.has(current.id)) break
+    seen.add(current.id)
+    rootId = current.parentCaseId
+  }
+
+  const lineage: any[] = []
+  const queue = [rootId]
+  const visited = new Set<string>()
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    if (visited.has(id)) continue
+    visited.add(id)
+
+    const node = await prisma.case.findFirst({
+      where: { id, organizationId },
+      select: {
+        id: true, internalId: true, caseNumber: true, year: true,
+        title: true, degree: true, jurisdiction: true, branch: true,
+        status: true, createdAt: true, closedAt: true, parentCaseId: true,
+        childCases: { select: { id: true } },
+      },
+    })
+    if (!node) continue
+
+    lineage.push(node)
+    for (const child of node.childCases) queue.push(child.id)
+  }
+
+  return lineage.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+}
 
 // ── GET /api/cases ──
 export async function getAll(req: AuthRequest, res: Response) {
@@ -139,7 +183,9 @@ export async function getOne(req: AuthRequest, res: Response) {
       return res.status(403).json({ error: 'غير مصرح' })
     }
 
-    return res.json(c)
+    const lineage = await getCaseLineage(c.id, req.user!.organizationId)
+
+    return res.json({ ...c, lineage })
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ' })
@@ -150,6 +196,16 @@ export async function getOne(req: AuthRequest, res: Response) {
 export async function create(req: AuthRequest, res: Response) {
   try {
     const data = caseSchema.parse(req.body)
+
+    let parentCase = null
+    if (data.parentCaseId) {
+      parentCase = await prisma.case.findFirst({
+        where: { id: data.parentCaseId, organizationId: req.user!.organizationId },
+      })
+      if (!parentCase) {
+        return res.status(404).json({ error: 'القضية السابقة (الدرجة الأدنى) غير موجودة' })
+      }
+    }
 
     const newCase = await prisma.case.create({
       data: {
@@ -169,6 +225,7 @@ export async function create(req: AuthRequest, res: Response) {
         organizationId: req.user!.organizationId,
         clientId: data.clientId || null,
         assignedLawyerId: data.assignedLawyerId || req.user!.id,
+        parentCaseId: parentCase?.id || null,
       },
     })
 
@@ -177,9 +234,21 @@ export async function create(req: AuthRequest, res: Response) {
       data: {
         caseId: newCase.id,
         action: 'case_created',
-        details: `تم إنشاء القضية بواسطة ${req.user!.name}`,
+        details: parentCase
+          ? `تم فتح درجة "${data.degree}" استكمالاً للقضية ${parentCase.internalId} بواسطة ${req.user!.name}`
+          : `تم إنشاء القضية بواسطة ${req.user!.name}`,
       },
     })
+
+    if (parentCase) {
+      await prisma.caseUpdate.create({
+        data: {
+          caseId: parentCase.id,
+          action: 'child_case_opened',
+          details: `تم فتح درجة تالية (${data.degree}) برقم ${data.caseNumber}/${data.year} بواسطة ${req.user!.name}`,
+        },
+      })
+    }
 
     return res.status(201).json({
       message: 'تم إضافة القضية بنجاح',
