@@ -173,6 +173,7 @@ model Case {
   invoices      Invoice[]
   caseUpdates   CaseUpdate[]
   executions    Execution[]
+  tasks         Task[]
 
   @@index([organizationId])
   @@index([clientId])
@@ -399,9 +400,12 @@ model Task {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assigneeId     String?
   assignee       User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  caseId         String?
+  case           Case?        @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([assigneeId])
+  @@index([caseId])
   @@map("tasks")
 }
 

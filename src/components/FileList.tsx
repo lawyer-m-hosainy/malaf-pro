@@ -1,5 +1,6 @@
 import { Trash2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 
 export function FileList({ files, onRemove, getIcon }: any) {
   if (!files || files.length === 0) {
@@ -11,14 +12,19 @@ export function FileList({ files, onRemove, getIcon }: any) {
     );
   }
 
-  const handleDownload = (file: any) => {
-    if (file.url || file.filePath) {
+  const handleDownload = async (file: any) => {
+    try {
+      const res = await api.get(`/documents/${file.id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
-      link.href = file.url || file.filePath;
+      link.href = url;
       link.download = file.name || file.title || 'document';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // تجاهل - رسالة الخطأ العامة كفاية للمستخدم
     }
   };
 

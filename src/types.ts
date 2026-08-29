@@ -29,7 +29,7 @@ export interface Case {
   branch: string;
   degree: string;
   title: string;
-  clientName: string;
+  client?: { id: string; name: string; phone?: string } | null;
   clientRole: string;
   opponent: string;
   status: string;

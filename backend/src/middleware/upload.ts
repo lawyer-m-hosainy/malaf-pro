@@ -1,26 +1,10 @@
 import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
 
-// مسار حفظ الملفات
-const uploadsDir = path.join(process.cwd(), 'uploads')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
-}
+// الملفات بتتخزن في الذاكرة مؤقتاً ثم بترفع لـ Supabase Storage
+// (السيرفر مش بيحتفظ بأي ملفات على القرص لأن الـ filesystem مؤقت في بيئات
+// زي Render/Railway وبيتمسح مع كل إعادة نشر)
+const storage = multer.memoryStorage()
 
-// إعداد التخزين
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadsDir)
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
-    const ext = path.extname(file.originalname)
-    cb(null, `${uniqueSuffix}${ext}`)
-  },
-})
-
-// فلتر أنواع الملفات المسموحة
 const fileFilter = (
   _req: any,
   file: Express.Multer.File,

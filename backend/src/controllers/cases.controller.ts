@@ -20,10 +20,7 @@ const caseSchema = z.object({
   assignedLawyerId: z.string().optional(),
   nextSession: z.string().optional(),
   description: z.string().optional(),
-})
-
-const updateStatusSchema = z.object({
-  status: z.nativeEnum(CaseStatus),
+  status: z.nativeEnum(CaseStatus).optional(),
 })
 
 // ── GET /api/cases ──
@@ -122,6 +119,10 @@ export async function getOne(req: AuthRequest, res: Response) {
         caseUpdates: {
           orderBy: { createdAt: 'desc' },
           take: 20,
+        },
+        tasks: {
+          orderBy: { createdAt: 'desc' },
+          include: { assignee: { select: { name: true } } },
         },
       },
     })
