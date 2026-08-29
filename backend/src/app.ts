@@ -18,6 +18,7 @@ import draftingRouter from './routes/drafting'
 import tasksRouter from './routes/tasks'
 import executionsRouter from './routes/executions'
 import libraryRouter from './routes/library'
+import portalRouter from './routes/portal'
 import { errorHandler } from './middleware/errorHandler'
 
 const app = express()
@@ -33,6 +34,9 @@ app.use(cors({
   credentials: true,
 }))
 
+// عطّل الـ rate limiting أثناء التستات عشان مايكسرش السويت (طلبات كتير في وقت قصير)
+const isTestEnv = env.NODE_ENV === 'test'
+
 // Rate limiting - الحماية من الهجمات
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 دقيقة
@@ -40,6 +44,7 @@ const limiter = rateLimit({
   message: { error: 'طلبات كثيرة جداً، حاول بعد قليل' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTestEnv,
 })
 app.use('/api/', limiter)
 
@@ -48,15 +53,23 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   message: { error: 'محاولات تسجيل دخول كثيرة، انتظر 15 دقيقة' },
+  skip: () => isTestEnv,
 })
 app.use('/api/auth/login', authLimiter)
+app.use('/api/auth/register', authLimiter)
+
+// Rate limit على بوابة الموكلين العامة (مفتوحة بدون تسجيل دخول)
+const portalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: 'طلبات كثيرة جداً، حاول بعد قليل' },
+  skip: () => isTestEnv,
+})
+app.use('/api/portal/public', portalLimiter)
 
 // Body parser
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
-
-// خدمة الملفات الثابتة (المستندات المرفوعة)
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
 // Health check
 app.get('/health', (_, res) => {
@@ -84,6 +97,7 @@ app.use('/api/drafting', draftingRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/executions', executionsRouter)
 app.use('/api/library', libraryRouter)
+app.use('/api/portal', portalRouter)
 
 // ══════════════════════════════════════
 // Frontend - خدمة الفرونت إند من نفس السيرفر

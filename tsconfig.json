@@ -23,5 +23,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["node_modules", "malaf-pro"]
+  "exclude": ["node_modules", "backend"]
 }

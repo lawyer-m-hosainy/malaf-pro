@@ -5,8 +5,12 @@ import { AuthRequest } from '../middleware/auth';
 // GET /api/tasks
 export async function getTasks(req: AuthRequest, res: Response) {
   try {
+    const { caseId } = req.query;
+    const where: any = { organizationId: req.user!.organizationId };
+    if (caseId) where.caseId = caseId as string;
+
     const tasks = await prisma.task.findMany({
-      where: { organizationId: req.user!.organizationId },
+      where,
       include: { assignee: { select: { name: true } } },
       orderBy: { createdAt: 'desc' }
     });
@@ -19,7 +23,7 @@ export async function getTasks(req: AuthRequest, res: Response) {
 // POST /api/tasks
 export async function createTask(req: AuthRequest, res: Response) {
   try {
-    const { title, description, status, priority, dueDate, assigneeId } = req.body;
+    const { title, description, status, priority, dueDate, assigneeId, caseId } = req.body;
     const task = await prisma.task.create({
       data: {
         title,
@@ -28,6 +32,7 @@ export async function createTask(req: AuthRequest, res: Response) {
         priority,
         dueDate: dueDate ? new Date(dueDate) : null,
         assigneeId,
+        caseId: caseId || null,
         organizationId: req.user!.organizationId
       }
     });
@@ -41,15 +46,23 @@ export async function createTask(req: AuthRequest, res: Response) {
 export async function updateTask(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { title, description, status, priority, dueDate, assigneeId } = req.body;
-    
+    const { title, description, status, priority, dueDate, assigneeId, caseId } = req.body;
+
     // verify it belongs to org
     const existing = await prisma.task.findFirst({ where: { id, organizationId: req.user!.organizationId }});
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
     const task = await prisma.task.update({
       where: { id },
-      data: { title, description, status, priority, dueDate: dueDate ? new Date(dueDate) : null, assigneeId }
+      data: {
+        title,
+        description,
+        status,
+        priority,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        assigneeId,
+        ...(caseId !== undefined && { caseId: caseId || null }),
+      }
     });
     return res.json(task);
   } catch (err) {

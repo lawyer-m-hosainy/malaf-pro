@@ -84,23 +84,3 @@ export function requireRole(...roles: string[]) {
     next()
   }
 }
-
-// ── Helper: توليد الـ Tokens ──
-export function generateTokens(payload: {
-  id: string
-  email: string
-  role: string
-  organizationId: string
-}) {
-  const accessToken = jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as any,
-  })
-
-  const refreshToken = jwt.sign(
-    { id: payload.id },
-    env.JWT_SECRET + '_refresh',
-    { expiresIn: '30d' }
-  )
-
-  return { accessToken, refreshToken }
-}

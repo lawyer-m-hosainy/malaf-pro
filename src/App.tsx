@@ -7,6 +7,8 @@ import { AsyncBoundary } from '@/components/AsyncBoundary';
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Login = lazy(() => import('@/pages/Login'));
+const Register = lazy(() => import('@/pages/Register'));
+const PortalView = lazy(() => import('@/pages/PortalView'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('@/pages/TermsOfService'));
 const Layout = lazy(() => import('@/components/layout/Layout'));
@@ -38,6 +40,8 @@ function App() {
         <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/portal/:token" element={<PortalView />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, TrendingUp, TrendingDown, ArrowDownToLine, Receipt, Printer, X, Loader2 } from 'lucide-react';
+import { Search, Plus, TrendingUp, TrendingDown, ArrowDownToLine, Receipt, Printer, X, Loader2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -157,7 +157,39 @@ export default function Finance() {
 
   const isPendingMutations = addInvoiceMutation.isPending || addExpenseMutation.isPending;
 
-  const filteredFinance = finance.filter(f => 
+  const handleDownloadInvoicePdf = async (id: string, invoiceLabel: string) => {
+    try {
+      const res = await api.get(`/finance/invoices/${id}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${invoiceLabel}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('حدث خطأ أثناء تحميل الفاتورة');
+    }
+  };
+
+  const handleDownloadReportPdf = async () => {
+    try {
+      const res = await api.get('/finance/reports/pdf', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'financial-report.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('حدث خطأ أثناء تحميل التقرير');
+    }
+  };
+
+  const filteredFinance = finance.filter(f =>
     (f.client && f.client.includes(searchQuery)) || 
     (f.note && f.note.includes(searchQuery)) || 
     (f.category && f.category.includes(searchQuery))
@@ -231,7 +263,7 @@ export default function Finance() {
              <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
              <Input placeholder="بحث برقم الإيصال، العميل، أو البيان..." className="pr-10" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
            </div>
-           <Button variant="outline" size="sm" className="gap-2 hidden md:flex"><ArrowDownToLine className="h-4 w-4" /> كشف حساب</Button>
+           <Button variant="outline" size="sm" className="gap-2 hidden md:flex" onClick={handleDownloadReportPdf}><ArrowDownToLine className="h-4 w-4" /> تصدير تقرير PDF</Button>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm text-right">
@@ -242,12 +274,13 @@ export default function Finance() {
                   <th className="p-4 font-medium">التصنيف</th>
                   <th className="p-4 font-medium text-center">التاريخ</th>
                   <th className="p-4 font-medium">الحالة</th>
+                  <th className="p-4 font-medium text-center">الإجراء</th>
                </tr>
             </thead>
             <tbody>
                {isLoading ? (
                  <tr>
-                   <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                   <td colSpan={6} className="p-8 text-center text-muted-foreground">
                      <div className="flex flex-col items-center justify-center space-y-3">
                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
                        <p>جاري تحميل البيانات...</p>
@@ -256,7 +289,7 @@ export default function Finance() {
                  </tr>
                ) : filteredFinance.length === 0 ? (
                  <tr>
-                   <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                   <td colSpan={6} className="p-8 text-center text-muted-foreground">
                      لا توجد بيانات مالية لعرضها
                    </td>
                  </tr>
@@ -296,6 +329,19 @@ export default function Finance() {
                             معلقة (مستحقة)
                           </span>
                         )}
+                     </td>
+                     <td className="p-4 text-center">
+                       {f.type !== 'expense' && (
+                         <Button
+                           size="icon"
+                           variant="outline"
+                           className="h-8 w-8"
+                           title="تحميل الفاتورة PDF"
+                           onClick={() => handleDownloadInvoicePdf(f.id, f.category || 'invoice')}
+                         >
+                           <Download className="h-4 w-4" />
+                         </Button>
+                       )}
                      </td>
                    </tr>
                  ))

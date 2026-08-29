@@ -167,17 +167,25 @@ model Case {
   assignedLawyerId String?
   assignedLawyer   User?        @relation("AssignedLawyer", fields: [assignedLawyerId], references: [id])
 
+  // ربط درجات التقاضي: كل درجة (ابتدائي/استئناف/نقض) قضية مستقلة برقمها
+  // الخاص، لكن مرتبطة بالدرجة السابقة عشان يتجمع تاريخ النزاع كامل
+  parentCaseId String?
+  parentCase   Case?   @relation("CaseDegrees", fields: [parentCaseId], references: [id], onDelete: SetNull)
+  childCases   Case[]  @relation("CaseDegrees")
+
   // Relations
   sessions      Session[]
   documents     Document[]
   invoices      Invoice[]
   caseUpdates   CaseUpdate[]
   executions    Execution[]
+  tasks         Task[]
 
   @@index([organizationId])
   @@index([clientId])
   @@index([status])
   @@index([nextSession])
+  @@index([parentCaseId])
   @@map("cases")
 }
 
@@ -399,9 +407,12 @@ model Task {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assigneeId     String?
   assignee       User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  caseId         String?
+  case           Case?        @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([assigneeId])
+  @@index([caseId])
   @@map("tasks")
 }
 

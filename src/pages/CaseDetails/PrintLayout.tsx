@@ -1,6 +1,9 @@
 import { cn } from '@/lib/utils';
 
-export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, documents, financials, printSections }: any) {
+export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, documents, caseUpdates, invoices, printSections }: any) {
+  const totalInvoiced = (invoices || []).reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
+  const totalPaid = (invoices || []).filter((inv: any) => inv.status === 'PAID').reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
+
   return (
     <div className="hidden print:block w-full text-black bg-white select-text" dir="rtl">
         {printSections.cover && (
@@ -16,7 +19,7 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
                 </div>
                 <div>
                    <p className="text-lg font-bold text-black bg-gray-100 border border-black inline-block px-3 py-1 rounded shadow-sm">
-                      رقم الأرشيف الداخلي למكتب: <span className="font-mono text-xl font-black tracking-wider text-indigo-900 mx-2">{caseData.internalId}</span>
+                      رقم الأرشيف الداخلي للمكتب: <span className="font-mono text-xl font-black tracking-wider text-indigo-900 mx-2">{caseData.internalId}</span>
                    </p>
                 </div>
               </div>
@@ -24,7 +27,7 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
                 <p className="border-b border-gray-300 pb-2 mb-2"><span className="text-gray-600 text-sm block">الجهة / التصنيف:</span> {caseData.jurisdiction}</p>
                 <p className="border-b border-gray-300 pb-2 mb-2"><span className="text-gray-600 text-sm block">درجة التقاضي الحالية:</span> {caseData.degree}</p>
                 <p className="border-b border-gray-300 pb-2 mb-2 font-mono text-xl font-bold" dir="rtl">رقم القضية: {caseData.currentCaseNumber} / {caseData.currentYear}</p>
-                <p><span className="text-gray-600 text-sm block">المحكمة / الاستئنافية:</span> {caseData.court}</p>
+                <p><span className="text-gray-600 text-sm block">الحالة:</span> {caseData.statusLabel}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-6 text-lg border-2 border-black border-dashed p-5 font-semibold rounded text-black bg-white relative">
@@ -44,23 +47,22 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
         {printSections.degrees && (
           <div className="mb-8 page-break-inside-avoid">
             <h3 className="text-xl font-bold border-b-2 border-black pb-2 mb-4 bg-gray-100 p-2 text-black flex items-center gap-2">
-              <span className="h-6 w-1 bg-black rounded-full block"></span> تسلسل ومسار درجات التقاضي
+              <span className="h-6 w-1 bg-black rounded-full block"></span> تسلسل درجات التقاضي
             </h3>
             <div className="space-y-3">
-              {litigationDegrees.map((deg: any) => (
-                <div key={deg.id} className={cn("border p-3 flex justify-between bg-white text-black relative items-center", deg.active ? "border-2 border-black" : "border-gray-400 border-dashed")}>
-                   {deg.active && <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-1.5 h-full bg-black rounded-l"></div>}
+              {(litigationDegrees || []).map((deg: any) => (
+                <div key={deg.id} className={cn("border p-3 flex justify-between bg-white text-black items-center", deg.isCurrent ? "border-2 border-black" : "border-gray-400 border-dashed")}>
                    <div className="w-1/3">
-                     <p className="font-bold text-lg">{deg.type}</p>
+                     <p className="font-bold text-lg">{deg.degree}</p>
                      <p className="text-gray-700 font-mono font-semibold">رقم: {deg.caseNumber} / {deg.year}</p>
                    </div>
                    <div className="text-right w-1/3 border-r border-gray-300 pr-4">
                      <p className="font-semibold text-gray-800">الجهة:</p>
-                     <p className="font-bold text-md">{deg.court}</p>
+                     <p className="font-bold text-md">{deg.jurisdiction} — {deg.branch}</p>
                    </div>
                    <div className="text-right w-1/3 border-r border-gray-300 pr-4">
-                     <p className="font-semibold text-gray-800">القرار / الحكم:</p>
-                     <p className="font-bold text-md text-black">{deg.result}</p>
+                     <p className="font-semibold text-gray-800">الحالة:</p>
+                     <p className="font-bold text-md text-black">{deg.statusLabel}</p>
                    </div>
                 </div>
               ))}
@@ -74,17 +76,12 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
               <span className="h-6 w-1 bg-black rounded-full block"></span> الخط الزمني (سجل أحداث وسير الدعوى)
             </h3>
             <ul className="list-none space-y-4 font-medium text-black pr-2">
-              {sessions.map((s: any) => (
-                <li key={s.id} className="border-r-4 border-gray-400 pr-4 py-1">
+              {(caseUpdates || []).map((u: any) => (
+                <li key={u.id} className="border-r-4 border-gray-400 pr-4 py-1">
                    <div className="flex gap-2 items-baseline mb-1">
-                     <span className="font-bold font-mono text-sm bg-gray-200 border border-gray-400 px-2 py-0.5 rounded shadow-sm">{s.date}</span>
-                     <span className="font-black text-lg underline decoration-gray-400 underline-offset-4">{s.type}</span>
+                     <span className="font-bold font-mono text-sm bg-gray-200 border border-gray-400 px-2 py-0.5 rounded shadow-sm">{new Date(u.createdAt).toLocaleDateString('ar-EG')}</span>
                    </div>
-                   <p className="text-base text-gray-900 border-b border-gray-200 pb-2 inline-block">القرار: <strong className="font-black text-black">{s.decision}</strong></p>
-                   <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 p-2 rounded mt-2">
-                     <span className="font-bold text-black border-l-2 border-gray-400 pl-2 ml-2">الإجراء المطلوب تنفيذه:</span> 
-                     {s.requirements}
-                   </p>
+                   <p className="text-base text-gray-900 border-b border-gray-200 pb-2 inline-block">{u.details}</p>
                 </li>
               ))}
             </ul>
@@ -100,16 +97,16 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
               <thead>
                  <tr className="bg-gray-200 border-b-2 border-black">
                    <th className="border border-black p-3 font-bold w-32 text-center">التاريخ</th>
-                   <th className="border border-black p-3 font-bold w-1/4">النوع / الوصف</th>
+                   <th className="border border-black p-3 font-bold w-1/4">النوع</th>
                    <th className="border border-black p-3 font-bold">القرار وما تم في الجلسة</th>
                  </tr>
               </thead>
               <tbody>
-                 {sessions.map((s: any) => (
+                 {(sessions || []).map((s: any) => (
                    <tr key={s.id} className="border-b border-black">
-                      <td className="border border-black p-3 font-mono font-bold text-center bg-gray-50">{s.date}</td>
-                      <td className="border border-black p-3 font-black text-base">{s.type}</td>
-                      <td className="border border-black p-3 text-base font-semibold">{s.decision}</td>
+                      <td className="border border-black p-3 font-mono font-bold text-center bg-gray-50">{new Date(s.date).toLocaleDateString('ar-EG')}</td>
+                      <td className="border border-black p-3 font-black text-base">{s.typeLabel}</td>
+                      <td className="border border-black p-3 text-base font-semibold">{s.result}</td>
                    </tr>
                  ))}
               </tbody>
@@ -125,17 +122,17 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
             <table className="w-full border-collapse border border-black text-right text-black text-sm">
               <thead>
                  <tr className="bg-gray-100 border-b border-black">
-                   <th className="border border-black p-2 font-bold w-32 border-b-2">تاريخ التكليف</th>
+                   <th className="border border-black p-2 font-bold w-32 border-b-2">تاريخ الاستحقاق</th>
                    <th className="border border-black p-2 font-bold border-b-2">تفاصيل وعنوان المهمة</th>
-                   <th className="border border-black p-2 font-bold border-b-2">جهة الاختصاص / المكلف</th>
+                   <th className="border border-black p-2 font-bold border-b-2">المكلف بها</th>
                  </tr>
               </thead>
               <tbody>
-                 {tasks.map((t: any) => (
+                 {(tasks || []).map((t: any) => (
                    <tr key={t.id} className="border-b border-gray-400">
-                     <td className="border border-black p-2 font-mono font-semibold text-center">{t.date}</td>
+                     <td className="border border-black p-2 font-mono font-semibold text-center">{t.dueDate ? new Date(t.dueDate).toLocaleDateString('ar-EG') : '-'}</td>
                      <td className="border border-black p-2 font-bold text-base">{t.title}</td>
-                     <td className="border border-black p-2 text-sm font-semibold text-gray-700">{t.assignee} ({t.type})</td>
+                     <td className="border border-black p-2 text-sm font-semibold text-gray-700">{t.assigneeName}</td>
                    </tr>
                  ))}
               </tbody>
@@ -158,12 +155,12 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
                  </tr>
                </thead>
                <tbody>
-                 {documents.map((d: any, index: number) => (
+                 {(documents || []).map((d: any, index: number) => (
                    <tr key={d.id}>
                      <td className="border border-black p-2 text-center font-bold">{index + 1}</td>
                      <td className="border border-black p-2 font-bold text-gray-700">{d.type}</td>
                      <td className="border border-black p-2 font-semibold text-base">{d.title}</td>
-                     <td className="border border-black p-2 font-mono text-sm text-center">{d.date}</td>
+                     <td className="border border-black p-2 font-mono text-sm text-center">{new Date(d.createdAt).toLocaleDateString('ar-EG')}</td>
                    </tr>
                  ))}
                </tbody>
@@ -174,46 +171,36 @@ export function PrintLayout({ caseData, litigationDegrees, sessions, tasks, docu
         {printSections.finance && (
           <div className="mb-8">
             <h3 className="text-xl font-bold border-b-2 border-black pb-2 mb-4 bg-gray-100 p-2 text-black flex items-center gap-2">
-               <span className="h-6 w-1 bg-black rounded-full block"></span> كشف الحساب والبيان المالي الخاص بالملف
+               <span className="h-6 w-1 bg-black rounded-full block"></span> كشف الفواتير والأتعاب الخاص بالملف
             </h3>
             <table className="w-full border-collapse border-2 border-black text-right text-black text-sm mb-4">
               <thead>
                 <tr className="bg-gray-200 border-b-2 border-black">
-                  <th className="border border-black p-3 font-bold w-32 text-center">تاريخ القيد</th>
-                  <th className="border border-black p-3 font-bold text-center">المبلغ المستحق / المدفوع</th>
-                  <th className="border border-black p-3 font-bold w-1/2">بيان الحركة / البند</th>
-                  <th className="border border-black p-3 font-bold w-40">دائن / مدين (التصنيف)</th>
+                  <th className="border border-black p-3 font-bold w-32 text-center">تاريخ الإصدار</th>
+                  <th className="border border-black p-3 font-bold text-center">المبلغ</th>
+                  <th className="border border-black p-3 font-bold w-1/2">رقم الفاتورة</th>
+                  <th className="border border-black p-3 font-bold w-40">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                {financials.map((f: any) => (
-                  <tr key={f.id} className="border-b border-gray-400">
-                    <td className="border border-black p-3 font-mono font-semibold text-center">{f.date}</td>
-                    <td className="border border-black p-3 font-mono font-black text-lg text-center bg-gray-50">{f.amount.toLocaleString()} <span className="text-xs font-bold text-gray-600">ج.م</span></td>
-                    <td className="border border-black p-3 font-bold text-base">{f.title}</td>
-                    <td className="border border-black p-3 text-sm font-bold text-gray-700">
-                       {f.type === 'income_fee' ? 'وارد - أتعاب' : f.type === 'income_expense' ? 'وارد - أمانة مصروفات' : 'منصرف - مصروفات ورسوم'}
-                    </td>
+                {(invoices || []).map((inv: any) => (
+                  <tr key={inv.id} className="border-b border-gray-400">
+                    <td className="border border-black p-3 font-mono font-semibold text-center">{new Date(inv.issueDate).toLocaleDateString('ar-EG')}</td>
+                    <td className="border border-black p-3 font-mono font-black text-lg text-center bg-gray-50">{inv.totalAmount.toLocaleString()} <span className="text-xs font-bold text-gray-600">ج.م</span></td>
+                    <td className="border border-black p-3 font-bold text-base" dir="ltr">{inv.invoiceNumber}</td>
+                    <td className="border border-black p-3 text-sm font-bold text-gray-700">{inv.statusLabel}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <div className="flex gap-4 print:page-break-inside-avoid">
-               <div className="flex-[2] border-2 border-black p-3 text-center bg-gray-50">
-                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2 text-gray-700">إجمالي الأتعاب المحصلة</p>
-                  <p className="font-mono text-2xl font-black">{financials.filter((f: any) => f.type === 'income_fee' && f.status === 'paid').reduce((sum: number, f: any) => sum + f.amount, 0).toLocaleString()} <span className="text-sm">ج.م</span></p>
-               </div>
-               <div className="flex-1 border-2 border-black p-3 text-center">
-                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2">أمانات محصلة</p>
-                  <p className="font-mono text-xl font-black">{financials.filter((f: any) => f.type === 'income_expense' && f.status === 'paid').reduce((sum: number, f: any) => sum + f.amount, 0).toLocaleString()} <span className="text-sm">ج.م</span></p>
-               </div>
-               <div className="flex-1 border-2 border-black p-3 text-center">
-                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2">المنصرف الفعلي</p>
-                  <p className="font-mono text-xl font-black">{financials.filter((f: any) => f.type === 'expense' && f.status === 'paid').reduce((sum: number, f: any) => sum + f.amount, 0).toLocaleString()} <span className="text-sm">ج.م</span></p>
+               <div className="flex-1 border-2 border-black p-3 text-center bg-gray-50">
+                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2 text-gray-700">إجمالي المحصل</p>
+                  <p className="font-mono text-2xl font-black">{totalPaid.toLocaleString()} <span className="text-sm">ج.م</span></p>
                </div>
                <div className="flex-1 border-2 border-black p-3 text-center bg-gray-200">
-                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2 text-gray-700">المتأخرات</p>
-                  <p className="font-mono text-xl font-black">{financials.filter((f: any) => f.status === 'pending').reduce((sum: number, f: any) => sum + f.amount, 0).toLocaleString()} <span className="text-sm">ج.م</span></p>
+                  <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-2 text-gray-700">إجمالي الفواتير</p>
+                  <p className="font-mono text-xl font-black">{totalInvoiced.toLocaleString()} <span className="text-sm">ج.م</span></p>
                </div>
             </div>
           </div>

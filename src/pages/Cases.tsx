@@ -13,33 +13,15 @@ import { caseSchema, CaseFormData } from '@/lib/validationSchemas';
 import { Case } from '@/types';
 import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import { Pagination } from '@/components/Pagination';
+import { CASE_STATUS_LABELS, CASE_STATUS_BADGE_CLASS } from '@/lib/labels';
+import { COURT_STRUCTURE, Jurisdiction } from '@/lib/courtStructure';
 
-const COURT_STRUCTURE = {
-  "القضاء العادي": {
-    "القضاء الجنائي": ["مخالفات", "جنح", "جنح مستأنفة", "جنايات أول درجة", "جنايات مستأنفة", "نقض جنائي"],
-    "القضاء المدني والتجاري": ["جزئي", "ابتدائي (كلي)", "استئناف عالي", "نقض مدني"],
-    "محاكم الأسرة": ["أسرة أول درجة", "استئناف أسرة", "نقض أسرة"],
-    "العمالي": ["عمالي جزئي", "عمالي كلي", "استئناف عالي", "نقض"]
-  },
-  "المحاكم الاقتصادية": {
-    "جنائي اقتصادي": ["جنح اقتصادية", "جنح مستأنفة اقتصادية", "جنايات اقتصادية", "جنايات مستأنفة اقتصادية"],
-    "مدني وتجاري اقتصادي": ["اقتصادي ابتدائي", "اقتصادي استئنافي", "نقض"]
-  },
-  "مجلس الدولة": {
-    "القضاء الإداري": ["محكمة القضاء الإداري", "المحاكم الإدارية", "المحكمة الإدارية العليا"],
-    "القضاء التأديبي": ["المحاكم التأديبية", "المحكمة الإدارية العليا"],
-    "التحضير": ["هيئة مفوضي الدولة"]
-  },
-  "القضاء العسكري": {
-    "المحاكم العسكرية": ["جنح عسكرية", "جنح مستأنفة عسكرية", "جنايات عسكرية", "طعون عسكرية"]
-  },
-  "جهات أخرى": {
-    "المحكمة الدستورية العليا": ["دعوى دستورية", "تنازع اختصاص و أحكام"],
-    "النيابة العامة والتحقيق": ["نيابة جزئية", "نيابة كلية", "استئناف", "قاضي التحقيق"]
-  }
-};
-
-type Jurisdiction = keyof typeof COURT_STRUCTURE;
+const STATUS_TABS: { label: string; value?: string }[] = [
+  { label: 'الجميع', value: undefined },
+  { label: 'متداولة', value: 'ACTIVE' },
+  { label: 'محجوزة للحكم', value: 'RESERVED' },
+  { label: 'منتهية', value: 'CLOSED' },
+];
 
 export default function Cases() {
   const { user } = useAuthStore();
@@ -64,7 +46,7 @@ export default function Cases() {
     endpoint: '/cases',
     params: {
       search: searchQuery || undefined,
-      status: statusFilter === 'الجميع' ? undefined : statusFilter
+      status: STATUS_TABS.find(t => t.label === statusFilter)?.value
     },
     limit: 20
   });
@@ -141,9 +123,9 @@ export default function Cases() {
 
   const stats = [
     { label: 'إجمالي القضايا', value: cases.length, color: 'text-primary' },
-    { label: 'متداولة / نشطة', value: cases.filter(c => ['مفتوحة', 'متداولة', 'بالخبراء'].includes(c.status)).length, color: 'text-blue-600 dark:text-blue-400' },
-    { label: 'محجوزة للحكم', value: cases.filter(c => c.status === 'محجوزة للحكم').length, color: 'text-amber-600 dark:text-amber-400' },
-    { label: 'منتهية', value: cases.filter(c => c.status === 'منتهية').length, color: 'text-muted-foreground' },
+    { label: 'متداولة / نشطة', value: cases.filter(c => ['ACTIVE', 'WITH_EXPERTS'].includes(c.status)).length, color: 'text-blue-600 dark:text-blue-400' },
+    { label: 'محجوزة للحكم', value: cases.filter(c => c.status === 'RESERVED').length, color: 'text-amber-600 dark:text-amber-400' },
+    { label: 'منتهية', value: cases.filter(c => c.status === 'CLOSED').length, color: 'text-muted-foreground' },
   ];
 
   return (
@@ -188,13 +170,13 @@ export default function Cases() {
              />
            </div>
            <div className="flex bg-muted/50 p-1 border rounded-lg overflow-x-auto w-full sm:w-auto">
-             {['الجميع', 'مفتوحة', 'محجوزة', 'منتهية'].map(f => (
+             {STATUS_TABS.map(t => (
                <button
-                 key={f}
-                 onClick={() => setStatusFilter(f)}
-                 className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${statusFilter === f ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                 key={t.label}
+                 onClick={() => setStatusFilter(t.label)}
+                 className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${statusFilter === t.label ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                >
-                 {f}
+                 {t.label}
                </button>
              ))}
            </div>
@@ -260,7 +242,7 @@ export default function Cases() {
                             <div className="flex flex-col text-xs space-y-1">
                                <div className="flex justify-between items-center bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 px-2 py-1 rounded">
                                  <span>موكلنا:</span>
-                                 <span className="font-bold max-w-[120px] truncate" title={`${item.clientName} (${item.clientRole})`}>{item.clientName || 'غير محدد'} <span className="font-normal opacity-70">({item.clientRole})</span></span>
+                                 <span className="font-bold max-w-[120px] truncate" title={`${item.client?.name} (${item.clientRole})`}>{item.client?.name || 'غير محدد'} <span className="font-normal opacity-70">({item.clientRole})</span></span>
                                </div>
                                <div className="flex justify-between items-center bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400 px-2 py-1 rounded">
                                  <span>ضد:</span>
@@ -278,13 +260,10 @@ export default function Cases() {
                          </td>
                          <td className="p-4">
                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
-                             item.status === 'متداولة' || item.status === 'مفتوحة' ? 'bg-primary/5 text-primary border-primary/20' :
-                             item.status === 'محجوزة للحكم' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
-                             item.status === 'بالخبراء' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' :
-                             'bg-muted text-muted-foreground border-border'
+                             CASE_STATUS_BADGE_CLASS[item.status] || 'bg-muted text-muted-foreground border-border'
                            }`}>
-                             {item.status === 'محجوزة للحكم' && <AlertCircle className="h-3 w-3" />}
-                             {item.status}
+                             {item.status === 'RESERVED' && <AlertCircle className="h-3 w-3" />}
+                             {CASE_STATUS_LABELS[item.status] || item.status}
                            </span>
                          </td>
                          <td className="p-4 text-center">

@@ -1,9 +1,14 @@
 import { Response } from 'express'
 import { z } from 'zod'
 import path from 'path'
-import fs from 'fs'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
+import {
+  uploadFile as uploadToStorage,
+  downloadFile as downloadFromStorage,
+  deleteFile as deleteFromStorage,
+  validateFile,
+} from '../lib/supabaseStorage'
 
 // ── Validation ──
 const updateSchema = z.object({
@@ -115,6 +120,11 @@ export async function uploadFile(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'لم يتم رفع أي ملف' })
     }
 
+    const { valid, error } = validateFile(req.file.mimetype, req.file.size)
+    if (!valid) {
+      return res.status(400).json({ error })
+    }
+
     const { caseId, title, tags } = req.body
 
     // تحقق إن القضية تابعة للمكتب (لو تم تحديد قضية)
@@ -126,8 +136,6 @@ export async function uploadFile(req: AuthRequest, res: Response) {
         },
       })
       if (!caseExists) {
-        // امسح الملف المرفوع
-        fs.unlinkSync(req.file.path)
         return res.status(404).json({ error: 'القضية غير موجودة' })
       }
     }
@@ -153,11 +161,19 @@ export async function uploadFile(req: AuthRequest, res: Response) {
         : tags
       : []
 
+    // ارفع الملف على Supabase Storage (مش على قرص السيرفر)
+    const { path: storagePath } = await uploadToStorage(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      req.user!.organizationId
+    )
+
     const doc = await prisma.document.create({
       data: {
         title: title || req.file.originalname,
         type: typeMap[ext] || 'other',
-        fileUrl: `/uploads/${req.file.filename}`,
+        fileUrl: storagePath,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         tags: parsedTags,
@@ -183,10 +199,6 @@ export async function uploadFile(req: AuthRequest, res: Response) {
       document: doc,
     })
   } catch (err) {
-    // لو حصل خطأ امسح الملف
-    if (req.file) {
-      fs.unlinkSync(req.file.path).toString
-    }
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في رفع المستند' })
   }
@@ -220,13 +232,19 @@ export async function download(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'الملف غير موجود' })
     }
 
-    const filePath = path.join(process.cwd(), doc.fileUrl)
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'الملف غير موجود على السيرفر' })
+    let buffer: Buffer
+    try {
+      buffer = await downloadFromStorage(doc.fileUrl)
+    } catch {
+      return res.status(404).json({ error: 'الملف غير موجود على التخزين السحابي' })
     }
 
-    return res.download(filePath, doc.title)
+    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(doc.title)}"`
+    )
+    return res.send(buffer)
   } catch (err) {
     console.error(err)
     return res.status(500).json({ error: 'حدث خطأ في تحميل المستند' })
@@ -289,12 +307,9 @@ export async function remove(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'المستند غير موجود' })
     }
 
-    // امسح الملف من السيرفر لو موجود
+    // امسح الملف من Supabase Storage لو موجود
     if (existing.fileUrl) {
-      const filePath = path.join(process.cwd(), existing.fileUrl)
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-      }
+      await deleteFromStorage(existing.fileUrl)
     }
 
     await prisma.document.delete({ where: { id: req.params.id } })

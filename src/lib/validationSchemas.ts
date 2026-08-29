@@ -49,7 +49,7 @@ export const clientSchema = z.object({
 export const financeSchema = z.object({
   caseId: z.string().min(1, 'رقم القضية مطلوب'),
   client: z.string().min(1, 'اسم الموكل مطلوب'),
-  amount: z.number({ invalid_type_error: 'المبلغ مطلوب ويجب أن يكون رقماً' })
+  amount: z.number({ message: 'المبلغ مطلوب ويجب أن يكون رقماً' })
     .positive('المبلغ لازم يكون أكبر من صفر'),
   type: z.string().min(1, 'نوع المعاملة مطلوب'),
   category: z.string()

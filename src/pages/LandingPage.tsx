@@ -14,7 +14,7 @@ export default function LandingPage() {
           <Link to="/login">
             <Button variant="ghost">تسجيل الدخول</Button>
           </Link>
-          <Link to="/login">
+          <Link to="/register">
              <Button>ابدأ مجاناً</Button>
           </Link>
         </nav>
@@ -33,7 +33,7 @@ export default function LandingPage() {
             معززة بالذكاء الاصطناعي وبنية تحتية عالية التشفير تضمن خصوصية الموكلين التامة.
           </p>
           <div className="flex justify-center gap-4 pt-4">
-            <Link to="/login">
+            <Link to="/register">
               <Button size="lg" className="h-12 px-8 text-lg">
                 تجربة النظام
               </Button>

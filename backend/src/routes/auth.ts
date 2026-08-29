@@ -4,6 +4,9 @@ import { requireAuth } from '../middleware/auth'
 
 const router = Router()
 
+// POST /api/auth/register — تسجيل مكتب جديد
+router.post('/register', AuthController.register)
+
 // POST /api/auth/login
 router.post('/login', AuthController.login)
 

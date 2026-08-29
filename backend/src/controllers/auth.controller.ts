@@ -2,6 +2,7 @@ import { Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { env } from '../config/env'
@@ -10,6 +11,13 @@ import { env } from '../config/env'
 const loginSchema = z.object({
   email: z.string().email('بريد إلكتروني غير صالح'),
   password: z.string().min(6, 'كلمة المرور قصيرة جداً'),
+})
+
+const registerSchema = z.object({
+  officeName: z.string().min(2, 'اسم المكتب مطلوب'),
+  name: z.string().min(2, 'الاسم مطلوب'),
+  email: z.string().email('بريد إلكتروني غير صالح'),
+  password: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'),
 })
 
 const changePasswordSchema = z.object({
@@ -90,6 +98,78 @@ export async function login(req: AuthRequest, res: Response) {
         id: user.organization.id,
         name: user.organization.name,
         plan: user.organization.plan,
+      },
+    })
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message })
+    }
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ، حاول مرة أخرى' })
+  }
+}
+
+// ── تسجيل مكتب جديد (Sign up) ──
+export async function register(req: AuthRequest, res: Response) {
+  try {
+    const data = registerSchema.parse(req.body)
+    const email = data.email.toLowerCase().trim()
+
+    const exists = await prisma.user.findUnique({ where: { email } })
+    if (exists) {
+      return res.status(409).json({ error: 'البريد الإلكتروني مستخدم بالفعل' })
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 10)
+
+    const { user, organization } = await prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.create({
+        data: { name: data.officeName.trim() },
+      })
+      const user = await tx.user.create({
+        data: {
+          name: data.name.trim(),
+          email,
+          passwordHash,
+          role: 'OWNER',
+          organizationId: organization.id,
+        },
+      })
+      return { user, organization }
+    })
+
+    const tokens = generateTokens({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      organizationId: user.organizationId,
+    })
+
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 30)
+
+    await prisma.refreshToken.create({
+      data: {
+        token: tokens.refreshToken,
+        userId: user.id,
+        expiresAt,
+      },
+    })
+
+    return res.status(201).json({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        organizationId: user.organizationId,
+      },
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        plan: organization.plan,
       },
     })
   } catch (err) {
@@ -190,7 +270,10 @@ export function generateTokens(payload: {
     expiresIn: '15m',  // قصير للأمان
   })
   const refreshToken = jwt.sign(
-    { id: payload.id },
+    // jti عشوائي لازم عشان لو نفس المستخدم عمل تسجيل دخول مرتين في نفس الثانية
+    // (register ثم login فوري مثلاً)، الـ JWT ميبقاش متطابق حرفياً - وإلا هيفشل
+    // على الـ unique constraint في جدول RefreshToken
+    { id: payload.id, jti: crypto.randomUUID() },
     env.JWT_SECRET + '_refresh',
     { expiresIn: '30d' }
   )

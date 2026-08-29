@@ -65,6 +65,15 @@ export async function deleteFile(path: string): Promise<void> {
   }
 }
 
+export async function downloadFile(path: string): Promise<Buffer> {
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(path)
+  if (error || !data) {
+    throw new Error('فشل تحميل الملف من Storage')
+  }
+  const arrayBuffer = await data.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
 export function validateFile(
   mimeType: string,
   size: number

@@ -14,7 +14,7 @@ export function CaseHeader({ caseData, handlers }: any) {
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold tracking-tight">{caseData.title}</h2>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-              {caseData.status}
+              {caseData.statusLabel}
             </span>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
               أرشيف المكتب: {caseData.internalId}
@@ -30,9 +30,11 @@ export function CaseHeader({ caseData, handlers }: any) {
           <Button variant="outline" className="gap-2" onClick={() => handlers.setIsPrintModalOpen(true)}>
             <Printer className="h-4 w-4" /> طباعة الملف
           </Button>
-          <Button className="gap-2">
-            <CalendarDays className="h-4 w-4" /> إضافة جلسة
-          </Button>
+          <Link to="/dashboard/sessions">
+            <Button className="gap-2">
+              <CalendarDays className="h-4 w-4" /> إضافة جلسة
+            </Button>
+          </Link>
         </div>
       </div>
     </div>
