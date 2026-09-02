@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type NotificationType = 
+export type NotificationType =
   | 'session_today'
   | 'session_tomorrow'
   | 'session_week'
   | 'payment_due'
-  | 'case_updated';
+  | 'case_updated'
+  | 'critical_deadline';
 
 export interface AppNotification {
   id: string;

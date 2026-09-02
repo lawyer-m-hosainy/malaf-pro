@@ -351,6 +351,49 @@ export async function getAlerts(req: AuthRequest, res: Response) {
       })
     })
 
+    // مواعيد حتمية قريبة أو فاتت (أهم تنبيه على الإطلاق - ممكن تسقط حق الموكل)
+    const criticalDeadlines = await prisma.criticalDeadline.findMany({
+      where: {
+        organizationId: orgId,
+        status: 'PENDING',
+        deadlineDate: { lte: in7Days },
+        ...(req.user!.role === 'LAWYER'
+          ? { case: { assignedLawyerId: req.user!.id } }
+          : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        deadlineDate: true,
+        case: { select: { id: true, title: true, internalId: true } },
+      },
+      orderBy: { deadlineDate: 'asc' },
+      take: 10,
+    })
+
+    criticalDeadlines.forEach(d => {
+      const diffDays = Math.ceil(
+        (new Date(d.deadlineDate).getTime() - today.getTime()) / 86400000
+      )
+      const isOverdue = diffDays < 0
+      const dayLabel = isOverdue
+        ? `فات الميعاد منذ ${Math.abs(diffDays)} يوم`
+        : diffDays === 0
+        ? 'آخر يوم اليوم!'
+        : diffDays === 1
+        ? 'آخر يوم غداً'
+        : `متبقي ${diffDays} أيام`
+
+      alerts.push({
+        type: 'critical_deadline',
+        severity: 'high',
+        title: isOverdue ? '⚠️ ميعاد حتمي فات' : 'ميعاد حتمي قريب',
+        message: `"${d.title}" - قضية "${d.case.title}" (${d.case.internalId}) - ${dayLabel}`,
+        caseId: d.case.id,
+        link: `/dashboard/cases/${d.case.id}`,
+      })
+    })
+
     // فواتير متأخرة
     const overdueCount = await prisma.invoice.count({
       where: { organizationId: orgId, status: 'OVERDUE' },

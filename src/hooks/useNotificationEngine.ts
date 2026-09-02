@@ -47,6 +47,7 @@ function mapAlertType(backendType: string) {
     case 'upcoming_session': return 'session_week' as const;
     case 'overdue_invoices': return 'payment_due' as const;
     case 'pending_invoices': return 'payment_due' as const;
+    case 'critical_deadline': return 'critical_deadline' as const;
     default: return 'session_week' as const;
   }
 }

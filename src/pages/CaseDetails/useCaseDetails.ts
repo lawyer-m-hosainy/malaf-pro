@@ -12,7 +12,7 @@ import {
 
 export function useCaseDetails() {
   const { id } = useParams();
-  const [activeTab, setActiveTab] = useState<'timeline' | 'degrees' | 'sessions' | 'tasks' | 'docs' | 'finance'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'degrees' | 'deadlines' | 'sessions' | 'tasks' | 'docs' | 'finance'>('timeline');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printSections, setPrintSections] = useState({
     cover: true,

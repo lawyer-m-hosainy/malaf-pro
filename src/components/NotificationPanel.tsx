@@ -39,6 +39,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
 
   const getTypeDotColor = (type: string) => {
     switch(type) {
+      case 'critical_deadline': return 'bg-destructive';
       case 'session_today': return 'bg-destructive';
       case 'session_tomorrow': return 'bg-amber-500';
       case 'session_week': return 'bg-blue-500';

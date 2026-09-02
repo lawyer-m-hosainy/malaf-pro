@@ -26,6 +26,7 @@ const AIDrafting = lazy(() => import('@/pages/AIDrafting'));
 const Reports = lazy(() => import('@/pages/Reports'));
 const Library = lazy(() => import('@/pages/Library'));
 const ClientPortal = lazy(() => import('@/pages/ClientPortal'));
+const PowersOfAttorney = lazy(() => import('@/pages/PowersOfAttorney'));
 const Settings = lazy(() => import('@/pages/Settings'));
 import PrivateRoute from '@/components/PrivateRoute';
 import PWAPrompt from '@/components/PWAPrompt';
@@ -63,6 +64,7 @@ function App() {
             <Route path="library" element={<Library />} />
             <Route path="team" element={<Team />} />
             <Route path="client-portal" element={<ClientPortal />} />
+            <Route path="poa" element={<PowersOfAttorney />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<div className="p-6 text-muted-foreground flex items-center justify-center min-h-[400px]">هذه الصفحة قيد التطوير...</div>} />
           </Route>

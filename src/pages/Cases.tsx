@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { caseSchema, CaseFormData } from '@/lib/validationSchemas';
@@ -15,6 +16,8 @@ import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import { Pagination } from '@/components/Pagination';
 import { CASE_STATUS_LABELS, CASE_STATUS_BADGE_CLASS } from '@/lib/labels';
 import { COURT_STRUCTURE, Jurisdiction } from '@/lib/courtStructure';
+import { useConflictCheck } from '@/hooks/useConflictCheck';
+import { ConflictWarningBanner } from '@/components/ConflictWarningBanner';
 
 const STATUS_TABS: { label: string; value?: string }[] = [
   { label: 'الجميع', value: undefined },
@@ -62,10 +65,13 @@ export default function Cases() {
       const res = await api.post('/cases', data);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['cases'] });
       setIsAddModalOpen(false);
       reset();
+      if (response.conflictWarning?.length > 0) {
+        toast.warning('تنبيه: هذه القضية بها تعارض مصالح محتمل - راجع اسم الخصم', { duration: 8000 });
+      }
     }
   });
 
@@ -82,6 +88,8 @@ export default function Cases() {
 
   const selectedJurisdiction = watch('jurisdiction') as Jurisdiction;
   const selectedBranch = watch('branch');
+  const opponentValue = watch('opponent');
+  const conflictMatches = useConflictCheck(opponentValue);
 
   const handleOpenAddModal = () => {
     const year = new Date().getFullYear();
@@ -457,6 +465,11 @@ export default function Cases() {
                         />
                         {errors.opponent && <p className="text-destructive text-xs mt-1">{errors.opponent.message}</p>}
                       </div>
+                      {conflictMatches.length > 0 && (
+                        <div className="lg:col-span-2">
+                          <ConflictWarningBanner matches={conflictMatches} />
+                        </div>
+                      )}
                     </div>
                 </div>
 

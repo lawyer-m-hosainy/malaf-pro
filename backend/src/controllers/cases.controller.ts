@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { CaseStatus } from '@prisma/client'
 import { getPaginationParams, paginatedResponse } from '../lib/pagination'
+import { findConflicts } from '../lib/conflictCheck'
 
 // ── Validation ──
 const caseSchema = z.object({
@@ -250,9 +251,13 @@ export async function create(req: AuthRequest, res: Response) {
       })
     }
 
+    // فحص تعارض مصالح على اسم الخصم - تحذير فقط، مش منع (القرار للمحامي)
+    const conflicts = await findConflicts(data.opponent, req.user!.organizationId)
+
     return res.status(201).json({
       message: 'تم إضافة القضية بنجاح',
       case: newCase,
+      conflictWarning: conflicts.length > 0 ? conflicts : undefined,
     })
   } catch (err) {
     if (err instanceof z.ZodError) {

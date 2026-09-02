@@ -6,12 +6,15 @@ import { Plus, Search, User, Edit, Printer, Building2, Globe2, X, Save, Loader2 
 import { useAuthStore } from '@/store/useAuthStore';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { clientSchema, ClientFormData } from '@/lib/validationSchemas';
 import { Client } from '@/types';
 import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import { Pagination } from '@/components/Pagination';
+import { useConflictCheck } from '@/hooks/useConflictCheck';
+import { ConflictWarningBanner } from '@/components/ConflictWarningBanner';
 
 export default function Clients() {
   const { user } = useAuthStore();
@@ -53,10 +56,13 @@ export default function Clients() {
       const res = await api.post('/clients', data);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       setIsAddModalOpen(false);
       reset();
+      if (response.conflictWarning?.length > 0) {
+        toast.warning('تنبيه: هذا الموكل به تعارض مصالح محتمل - راجع الاسم', { duration: 8000 });
+      }
     }
   });
 
@@ -72,6 +78,8 @@ export default function Clients() {
   });
 
   const selectedType = watch('type');
+  const nameValue = watch('name');
+  const conflictMatches = useConflictCheck(nameValue);
 
   const onTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const type = e.target.value;
@@ -279,7 +287,13 @@ export default function Clients() {
                   />
                   {errors.name && <p className="text-destructive text-xs mt-1">{errors.name.message}</p>}
                 </div>
-                
+
+                {conflictMatches.length > 0 && (
+                  <div className="col-span-2">
+                    <ConflictWarningBanner matches={conflictMatches} />
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">الصفة <span className="text-destructive">*</span></label>
                   <select 
