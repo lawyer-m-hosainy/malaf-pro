@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { AuthRequest } from '../middleware/auth'
 import { getPaginationParams, paginatedResponse } from '../lib/pagination'
+import { findConflicts } from '../lib/conflictCheck'
 
 // ── Validation ──
 const clientSchema = z.object({
@@ -124,6 +125,19 @@ export async function getOne(req: AuthRequest, res: Response) {
   }
 }
 
+// ── GET /api/clients/check-conflict?name=... ──
+// فحص تعارض المصالح: هل الاسم ده موكل حالي أو خصم في قضية حالية بالمكتب؟
+export async function checkConflict(req: AuthRequest, res: Response) {
+  try {
+    const name = (req.query.name as string) || ''
+    const matches = await findConflicts(name, req.user!.organizationId)
+    return res.json({ data: matches })
+  } catch (err) {
+    console.error(err)
+    return res.status(500).json({ error: 'حدث خطأ في فحص تعارض المصالح' })
+  }
+}
+
 // ── POST /api/clients ──
 export async function create(req: AuthRequest, res: Response) {
   try {
@@ -155,9 +169,13 @@ export async function create(req: AuthRequest, res: Response) {
       },
     })
 
+    // فحص تعارض مصالح - تحذير فقط، مش منع (القرار للمحامي)
+    const conflicts = await findConflicts(data.name, req.user!.organizationId, client.id)
+
     return res.status(201).json({
       message: 'تم إضافة الموكل بنجاح',
       client,
+      conflictWarning: conflicts.length > 0 ? conflicts : undefined,
     })
   } catch (err) {
     if (err instanceof z.ZodError) {

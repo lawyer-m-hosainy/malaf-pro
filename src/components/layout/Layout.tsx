@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Users, Briefcase, Settings, LogOut, Scale, CalendarDays, FolderOpen, Menu, X, Wallet, Bot, BookOpen, UsersRound, FileArchive, PieChart, MessageSquare, CheckSquare, Globe, Gavel } from 'lucide-react';
+import { Home, Users, Briefcase, Settings, LogOut, Scale, CalendarDays, FolderOpen, Menu, X, Wallet, Bot, BookOpen, UsersRound, FileArchive, PieChart, MessageSquare, CheckSquare, Globe, Gavel, FileSignature } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -40,6 +40,7 @@ export default function Layout() {
       items: [
         { icon: Users, label: 'الموكلون', path: '/dashboard/clients' },
         { icon: Briefcase, label: 'القضايا', path: '/dashboard/cases' },
+        { icon: FileSignature, label: 'التوكيلات', path: '/dashboard/poa' },
         { icon: Gavel, label: 'التنفيذ والأحكام', path: '/dashboard/execution' },
         { icon: CalendarDays, label: 'المواعيد والجلسات', path: '/dashboard/sessions' },
         { icon: FolderOpen, label: 'الشغل الإداري', path: '/dashboard/administrative' },

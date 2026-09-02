@@ -1,4 +1,4 @@
-import { History, Scale, CalendarDays, CheckSquare, FileArchive, Wallet, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { History, Scale, CalendarDays, CheckSquare, FileArchive, Wallet, Loader2, AlertTriangle, ArrowRight, AlarmClock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useCaseDetails } from './useCaseDetails';
@@ -6,6 +6,7 @@ import { CaseHeader } from './CaseHeader';
 import { CaseInfo } from './CaseInfo';
 import { CaseTimeline } from './CaseTimeline';
 import { CaseDegrees } from './CaseDegrees';
+import { CaseDeadlines } from './CaseDeadlines';
 import { CaseSessions } from './CaseSessions';
 import { CaseTasks } from './CaseTasks';
 import { CaseDocuments } from './CaseDocuments';
@@ -19,6 +20,7 @@ export default function CaseDetails() {
   const tabs = [
     { id: 'timeline', label: 'الخط الزمني (سير الدعوى)', icon: History },
     { id: 'degrees', label: 'درجة التقاضي', icon: Scale },
+    { id: 'deadlines', label: 'المواعيد الحتمية', icon: AlarmClock },
     { id: 'sessions', label: 'أجندة الجلسات', icon: CalendarDays },
     { id: 'tasks', label: 'المهام ومتابعة الشغل', icon: CheckSquare },
     { id: 'docs', label: 'المستندات والمذكرات', icon: FileArchive },
@@ -77,6 +79,7 @@ export default function CaseDetails() {
       <div className="min-h-[400px] print:hidden">
         {state.activeTab === 'timeline' && <CaseTimeline caseUpdates={data.caseUpdates} />}
         {state.activeTab === 'degrees' && <CaseDegrees caseData={data.caseData} litigationDegrees={data.litigationDegrees} />}
+        {state.activeTab === 'deadlines' && <CaseDeadlines caseId={data.caseData.id} />}
         {state.activeTab === 'sessions' && <CaseSessions sessions={data.sessions} />}
         {state.activeTab === 'tasks' && <CaseTasks tasks={data.tasks} />}
         {state.activeTab === 'docs' && <CaseDocuments caseId={data.caseData.id} />}

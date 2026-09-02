@@ -35,6 +35,8 @@ model Organization {
   tasks         Task[]
   executions    Execution[]
   libraryItems  LibraryItem[]
+  criticalDeadlines CriticalDeadline[]
+  powersOfAttorney  PowerOfAttorney[]
 
   @@map("organizations")
 }
@@ -74,6 +76,8 @@ model User {
 
   // علاقات جديدة
   createdPortalAccess PortalAccess[]
+  createdDeadlines    CriticalDeadline[]
+  poaLawyer           PowerOfAttorney[]
 
   @@index([organizationId])
   @@index([email])
@@ -130,6 +134,7 @@ model Client {
 
   // علاقات جديدة
   portalAccess PortalAccess[]
+  powersOfAttorney PowerOfAttorney[]
 
   // رقم قومي فريد داخل نفس المكتب
   @@unique([nationalId, organizationId])
@@ -180,6 +185,8 @@ model Case {
   caseUpdates   CaseUpdate[]
   executions    Execution[]
   tasks         Task[]
+  criticalDeadlines CriticalDeadline[]
+  powersOfAttorney  PowerOfAttorney[]
 
   @@index([organizationId])
   @@index([clientId])
@@ -499,4 +506,67 @@ model PortalAccess {
   @@index([token])
   @@index([clientId])
   @@map("portal_access")
+}
+
+// ══════════════════════════════════════
+// 16. المواعيد الحتمية (Critical statutory deadlines)
+// ══════════════════════════════════════
+model CriticalDeadline {
+  id           String         @id @default(cuid())
+  title        String         // "ميعاد الطعن بالاستئناف"
+  triggerDate  DateTime       // تاريخ بداية سريان الميعاد (صدور الحكم / الإعلان)
+  deadlineDate DateTime       // آخر يوم للميعاد
+  notes        String?
+  status       DeadlineStatus @default(PENDING)
+  completedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  caseId         String
+  case           Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([caseId])
+  @@index([deadlineDate])
+  @@map("critical_deadlines")
+}
+
+enum DeadlineStatus {
+  PENDING
+  COMPLETED
+  MISSED
+}
+
+// ══════════════════════════════════════
+// 17. التوكيلات الرسمية (Powers of attorney)
+// ══════════════════════════════════════
+model PowerOfAttorney {
+  id           String    @id @default(cuid())
+  number       String    // رقم التوكيل
+  scope        String    // نطاق التوكيل (عام/خاص) ووصفه المختصر
+  issueDate    DateTime
+  expiryDate   DateTime?
+  notaryOffice String?   // مكتب التوثيق
+  isActive     Boolean   @default(true)
+  fileUrl      String?   // مسار المستند الممسوح ضوئياً (Supabase Storage)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lawyerId       String?
+  lawyer         User?        @relation(fields: [lawyerId], references: [id])
+  caseId         String?
+  case           Case?        @relation(fields: [caseId], references: [id])
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@map("powers_of_attorney")
 }

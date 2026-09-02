@@ -19,6 +19,8 @@ import tasksRouter from './routes/tasks'
 import executionsRouter from './routes/executions'
 import libraryRouter from './routes/library'
 import portalRouter from './routes/portal'
+import deadlinesRouter from './routes/deadlines'
+import poaRouter from './routes/poa'
 import { errorHandler } from './middleware/errorHandler'
 
 const app = express()
@@ -98,6 +100,8 @@ app.use('/api/tasks', tasksRouter)
 app.use('/api/executions', executionsRouter)
 app.use('/api/library', libraryRouter)
 app.use('/api/portal', portalRouter)
+app.use('/api/deadlines', deadlinesRouter)
+app.use('/api/poa', poaRouter)
 
 // ══════════════════════════════════════
 // Frontend - خدمة الفرونت إند من نفس السيرفر
